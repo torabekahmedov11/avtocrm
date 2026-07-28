@@ -8,8 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { api } from "@/api";
 import { useApp } from "@/context";
 import type { Patient } from "@/types";
+import { KHOREZM_LOCATIONS } from "@/lib/i18n";
 
-const REFERRAL_SOURCES = ["Google", "Facebook", "Yelp", "Friend / family", "Insurance directory", "Walk-in", "Other"];
+const REFERRAL_SOURCES_UZ = ["Tavsiya (Tanish/Qarindosh)", "Instagram / Telegram", "Tashqi reklama (Bannert)", "Piyoda kirib keldi (Walk-in)", "Boshqa"];
+const REFERRAL_SOURCES_RU = ["Рекомендация (Друзья/Родственники)", "Instagram / Telegram", "Наружная реклама", "Проходил мимо", "Другое"];
 
 interface Props {
   open: boolean;
@@ -21,6 +23,8 @@ interface Props {
 
 export function PatientDialog({ open, onOpenChange, patient, onSaved }: Props) {
   const app = useApp();
+  const { t, language } = app;
+
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
   const [dob, setDob] = useState("");
@@ -48,7 +52,7 @@ export function PatientDialog({ open, onOpenChange, patient, onSaved }: Props) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!first.trim() || !last.trim()) {
-      app.setError("First and last name are required");
+      app.setError(language === "ru" ? "Имя и фамилия обязательны" : "Ism va familiyasi kiritilishi shart");
       return;
     }
     setSaving(true);
@@ -76,60 +80,64 @@ export function PatientDialog({ open, onOpenChange, patient, onSaved }: Props) {
     }
   }
 
+  const referralList = language === "ru" ? REFERRAL_SOURCES_RU : REFERRAL_SOURCES_UZ;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{patient ? "Edit patient" : "New patient"}</DialogTitle>
+          <DialogTitle className="text-lg font-bold">
+            {patient ? (language === "ru" ? "Редактировать карту пациента" : "Bemor kartochkasini tahrirlash") : t("newPatient")}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="First name *">
-              <Input value={first} onChange={(e) => setFirst(e.target.value)} required />
+            <Field label={`${t("firstName")} *`}>
+              <Input value={first} onChange={(e) => setFirst(e.target.value)} placeholder="Otabek" required />
             </Field>
-            <Field label="Last name *">
-              <Input value={last} onChange={(e) => setLast(e.target.value)} required />
+            <Field label={`${t("lastName")} *`}>
+              <Input value={last} onChange={(e) => setLast(e.target.value)} placeholder="Ergashev" required />
             </Field>
-            <Field label="Date of birth">
+            <Field label={language === "ru" ? "Дата рождения" : "Tug'ilgan sana"}>
               <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
             </Field>
-            <Field label="Email">
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Field label={t("phone")}>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998 (91) 234-56-78" />
             </Field>
-            <Field label="Phone">
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <Field label={t("email")}>
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="bemor@mail.uz" />
             </Field>
-            <Field label="Address">
-              <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+            <Field label={t("address")}>
+              <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Urganch sh., Al-Xorazmiy k. 24" />
             </Field>
           </div>
-          <Field label="Medical alerts (comma-separated)">
+          <Field label={t("medicalAlerts")}>
             <Input
               value={alerts}
               onChange={(e) => setAlerts(e.target.value)}
-              placeholder="e.g. allergy:penicillin, diabetes, anticoagulant"
+              placeholder={language === "ru" ? "напр.: аллергия на пенициллин, диабет, гипертония" : "masalan: penitsilinga allergiya, diabet, gipertoniya"}
             />
           </Field>
-          <Field label="How did they hear about us?">
+          <Field label={t("referralSource")}>
             <Select value={referralSource} onValueChange={setReferralSource}>
-              <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("select")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">— Unknown —</SelectItem>
-                {REFERRAL_SOURCES.map((s) => (
+                <SelectItem value="none">— {t("none")} —</SelectItem>
+                {referralList.map((s) => (
                   <SelectItem key={s} value={s}>{s}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Notes">
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+          <Field label={t("notes")}>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder={t("notePlaceholder")} />
           </Field>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : patient ? "Save" : "Create"}
+              {saving ? t("loading") : patient ? t("save") : t("add")}
             </Button>
           </DialogFooter>
         </form>
@@ -141,7 +149,7 @@ export function PatientDialog({ open, onOpenChange, patient, onSaved }: Props) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <Label className="text-xs font-semibold text-foreground/90">{label}</Label>
       {children}
     </div>
   );

@@ -10,26 +10,26 @@ import type { ToothCondition, ToothConditionRow } from "@/types";
 
 type Brush = ToothCondition | "erase";
 
-const CONDITION_META: Record<ToothCondition, { label: string; fill: string; outline: string; chip: string }> = {
-  caries:      { label: "Caries",       fill: "#fecaca", outline: "#dc2626", chip: "bg-rose-200 text-rose-900" },
-  restoration: { label: "Restoration",  fill: "#fde68a", outline: "#d97706", chip: "bg-amber-200 text-amber-900" },
-  crown:       { label: "Crown",        fill: "#ddd6fe", outline: "#7c3aed", chip: "bg-violet-200 text-violet-900" },
-  endo:        { label: "Endo",         fill: "#fbcfe8", outline: "#db2777", chip: "bg-fuchsia-200 text-fuchsia-900" },
-  implant:     { label: "Implant",      fill: "#99f6e4", outline: "#0d9488", chip: "bg-teal-200 text-teal-900" },
-  missing:     { label: "Missing",      fill: "#cbd5e1", outline: "#64748b", chip: "bg-slate-200 text-slate-700" },
-};
-
 const BRUSH_ORDER: ToothCondition[] = ["caries", "restoration", "crown", "endo", "implant", "missing"];
 
 export function ToothChart({ patientId }: { patientId: number }) {
   const app = useApp();
+  const { t, language } = app;
+
   const [conditions, setConditions] = useState<ToothConditionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [brush, setBrush] = useState<Brush>("caries");
   const [readOnly, setReadOnly] = useState(false);
-  // Bumped after each tooth click to remount the chart and clear its
-  // internal "selected" ring (the library's selection state is uncontrolled).
   const [tick, setTick] = useState(0);
+
+  const conditionMeta: Record<ToothCondition, { label: string; fill: string; outline: string }> = {
+    caries:      { label: t("brushCaries"),       fill: "#fecaca", outline: "#dc2626" },
+    restoration: { label: t("brushRestoration"),  fill: "#fde68a", outline: "#d97706" },
+    crown:       { label: t("brushCrown"),        fill: "#ddd6fe", outline: "#7c3aed" },
+    endo:        { label: t("brushEndo"),         fill: "#fbcfe8", outline: "#db2777" },
+    implant:     { label: t("brushImplant"),      fill: "#99f6e4", outline: "#0d9488" },
+    missing:     { label: t("brushMissing"),      fill: "#cbd5e1", outline: "#64748b" },
+  };
 
   useEffect(() => {
     (async () => {
@@ -50,16 +50,15 @@ export function ToothChart({ patientId }: { patientId: number }) {
 
   const teethConditions: ToothConditionGroup[] = useMemo(() => {
     return BRUSH_ORDER.map((c) => ({
-      label: CONDITION_META[c].label,
-      fillColor: CONDITION_META[c].fill,
-      outlineColor: CONDITION_META[c].outline,
+      label: conditionMeta[c].label,
+      fillColor: conditionMeta[c].fill,
+      outlineColor: conditionMeta[c].outline,
       teeth: conditions.filter((row) => row.condition === c && !row.surface).map((row) => `teeth-${row.tooth}`),
     })).filter((g) => g.teeth.length > 0);
-  }, [conditions]);
+  }, [conditions, conditionMeta]);
 
   async function setToothCondition(fdi: string, next: ToothCondition | null) {
     try {
-      // Replace any whole-tooth condition for this tooth.
       const existing = conditions.filter((c) => c.tooth === fdi && !c.surface);
       await Promise.all(existing.map((e) => api("DELETE", `/api/tooth-conditions/${e.id}`)));
       let nextLocal = conditions.filter((c) => !(c.tooth === fdi && !c.surface));
@@ -79,22 +78,17 @@ export function ToothChart({ patientId }: { patientId: number }) {
   }
 
   function handleChange(selected: ToothDetail[]) {
-    // singleSelect mode → either one tooth (newly clicked) or empty (re-click clears).
     if (!selected.length) return;
     const fdi = selected[0].notations.fdi;
     const existing = conditions.find((c) => c.tooth === fdi && !c.surface);
 
-    // Toggle: clicking the same brush on an already-marked tooth clears it.
-    // Erase brush always clears.
     if (brush === "erase" || (existing && existing.condition === brush)) {
       setToothCondition(fdi, null);
     } else {
       setToothCondition(fdi, brush);
     }
 
-    // Force the library to drop its internal selection ring so the next click
-    // is a fresh interaction rather than a deselect.
-    setTick((t) => t + 1);
+    setTick((tVal) => tVal + 1);
   }
 
   const counts = useMemo(() => {
@@ -111,24 +105,26 @@ export function ToothChart({ patientId }: { patientId: number }) {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="flex flex-wrap items-center gap-3">
-            <span>Tooth chart</span>
-            <span className="ml-auto text-xs font-normal text-muted-foreground">FDI numbering</span>
+          <CardTitle className="flex flex-wrap items-center gap-3 text-base font-semibold">
+            <span>{t("toothChartTitle")}</span>
+            <span className="ml-auto text-xs font-normal text-muted-foreground">{t("toothChartSubtitle")}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Brush:</span>
+            <span className="mr-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              {language === "ru" ? "Инструмент:" : "Asbob:"}
+            </span>
             {BRUSH_ORDER.map((c) => (
               <BrushButton
                 key={c}
                 active={brush === c}
                 disabled={readOnly}
                 onClick={() => setBrush(c)}
-                label={CONDITION_META[c].label}
+                label={conditionMeta[c].label}
                 count={counts[c]}
-                fill={CONDITION_META[c].fill}
-                outline={CONDITION_META[c].outline}
+                fill={conditionMeta[c].fill}
+                outline={conditionMeta[c].outline}
               />
             ))}
             <button
@@ -138,13 +134,13 @@ export function ToothChart({ patientId }: { patientId: number }) {
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
                 brush === "erase"
-                  ? "border-foreground/20 bg-foreground/10 text-foreground"
+                  ? "border-foreground/20 bg-foreground/10 text-foreground font-semibold"
                   : "border-border bg-background text-muted-foreground hover:bg-accent",
                 readOnly && "cursor-not-allowed opacity-50",
               )}
             >
               <Eraser className="h-3.5 w-3.5" />
-              Erase
+              {t("clearTooth")}
             </button>
             <button
               type="button"
@@ -152,14 +148,14 @@ export function ToothChart({ patientId }: { patientId: number }) {
               className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent"
             >
               {readOnly ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
-              {readOnly ? "Read-only" : "Editing"}
+              {readOnly ? (language === "ru" ? "Только чтение" : "Faqat ko'rish") : (language === "ru" ? "Редактирование" : "Tahrirlash")}
             </button>
           </div>
 
           {loading ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">Loading…</p>
+            <p className="py-12 text-center text-sm text-muted-foreground">{t("loading")}</p>
           ) : (
-            <div className="odontogram-host mx-auto w-full max-w-md rounded-md bg-muted/30 p-2">
+            <div className="odontogram-host mx-auto w-full max-w-md rounded-md bg-muted/30 p-2 border">
               <Odontogram
                 key={`chart-${tick}-${readOnly ? "ro" : "rw"}`}
                 singleSelect
@@ -175,7 +171,9 @@ export function ToothChart({ patientId }: { patientId: number }) {
 
           {!readOnly && (
             <p className="text-xs text-muted-foreground">
-              Pick a brush above, then click any tooth to apply its condition. Click the same tooth again to clear it, or use <strong>Erase</strong>.
+              {language === "ru"
+                ? "Выберите инструмент выше и нажмите на любой зуб для нанесения диагноза/лечения."
+                : "Tepadagi asboblardan birini tanlang va tishga bosing. Bekor qilish uchun qayta bosing yoki tozalash asbobidan foydalaning."}
             </p>
           )}
         </CardContent>
@@ -201,8 +199,8 @@ function BrushButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
-        active ? "ring-2 ring-offset-1" : "hover:bg-accent",
+        "inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors shadow-2xs",
+        active ? "ring-2 ring-offset-1 font-semibold" : "hover:bg-accent",
         disabled && "cursor-not-allowed opacity-50",
       )}
       style={{

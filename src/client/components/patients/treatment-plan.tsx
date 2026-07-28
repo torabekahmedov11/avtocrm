@@ -8,19 +8,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { cn, colorClasses } from "@/lib/utils";
+import { cn, colorClasses, formatCurrency } from "@/lib/utils";
 import type { TreatmentPlanItem, TreatmentPlanStatus } from "@/types";
 
 const STATUSES: TreatmentPlanStatus[] = ["planned", "accepted", "completed", "declined"];
+
 const STATUS_STYLE: Record<TreatmentPlanStatus, string> = {
-  planned:   "bg-sky-100 text-sky-800 border-sky-200",
-  accepted:  "bg-emerald-100 text-emerald-800 border-emerald-200",
-  completed: "bg-slate-100 text-slate-700 border-slate-200",
-  declined:  "bg-rose-100 text-rose-800 border-rose-200",
+  planned:   "bg-sky-100 text-sky-800 border-sky-200 font-medium",
+  accepted:  "bg-emerald-100 text-emerald-800 border-emerald-200 font-medium",
+  completed: "bg-slate-100 text-slate-700 border-slate-200 font-medium",
+  declined:  "bg-rose-100 text-rose-800 border-rose-200 font-medium",
 };
 
 export function TreatmentPlan({ patientId }: { patientId: number }) {
   const app = useApp();
+  const { t, language } = app;
   const [items, setItems] = useState<TreatmentPlanItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -97,7 +99,8 @@ export function TreatmentPlan({ patientId }: { patientId: number }) {
   }
 
   async function remove(id: number) {
-    if (!confirm("Remove this plan item?")) return;
+    const msg = language === "ru" ? "Удалить эту процедуру?" : "Ushbu muolajani o'chirasizmi?";
+    if (!confirm(msg)) return;
     try {
       await api("DELETE", `/api/treatment-plan-items/${id}`);
       setItems((prev) => prev.filter((i) => i.id !== id));
@@ -106,59 +109,71 @@ export function TreatmentPlan({ patientId }: { patientId: number }) {
     }
   }
 
+  const getStatusLabel = (status: TreatmentPlanStatus) => {
+    switch (status) {
+      case "planned": return t("planPlanned");
+      case "accepted": return t("planAccepted");
+      case "completed": return t("planCompleted");
+      case "declined": return t("planDeclined");
+      default: return status;
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
-        <SummaryCard label="Planned"   amount={totals.planned}   tone="sky" />
-        <SummaryCard label="Accepted"  amount={totals.accepted}  tone="emerald" />
-        <SummaryCard label="Completed" amount={totals.completed} tone="slate" />
+        <SummaryCard label={t("planPlanned")} amount={totals.planned} tone="sky" lang={language} />
+        <SummaryCard label={t("planAccepted")} amount={totals.accepted} tone="emerald" lang={language} />
+        <SummaryCard label={t("planCompleted")} amount={totals.completed} tone="slate" lang={language} />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Treatment plan</CardTitle>
+          <CardTitle className="text-base font-semibold">{t("tabTreatmentPlan")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <form onSubmit={addItem} className="grid grid-cols-1 items-end gap-2 rounded-md border bg-muted/30 p-3 sm:grid-cols-[2fr_1fr_1fr_auto]">
             <div className="space-y-1.5">
-              <Label className="text-xs">Treatment</Label>
+              <Label className="text-xs font-medium">{t("treatmentType")}</Label>
               <Select value={treatmentTypeId} onValueChange={setTreatmentTypeId}>
-                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("selectTreatment")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— None —</SelectItem>
-                  {app.treatmentTypes.map((t) => (
-                    <SelectItem key={t.id} value={t.id.toString()}>{t.code} · {t.name}</SelectItem>
+                  <SelectItem value="none">— {t("none")} —</SelectItem>
+                  {app.treatmentTypes.map((tr) => (
+                    <SelectItem key={tr.id} value={tr.id.toString()}>{tr.code} · {tr.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Tooth</Label>
-              <Input value={tooth} onChange={(e) => setTooth(e.target.value)} placeholder="e.g. 14" />
+              <Label className="text-xs font-medium">{t("toothNumber")}</Label>
+              <Input value={tooth} onChange={(e) => setTooth(e.target.value)} placeholder="14" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Fee</Label>
-              <Input type="number" step="0.01" min="0" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="0.00" />
+              <Label className="text-xs font-medium">{t("estimatedFee")}</Label>
+              <Input type="number" step="1000" min="0" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="250000" />
             </div>
             <Button type="submit" disabled={adding}>
               <Plus className="h-4 w-4" />
-              Add
+              {t("add")}
             </Button>
           </form>
 
           {loading ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">Loading…</p>
+            <p className="py-12 text-center text-sm text-muted-foreground">{t("loading")}</p>
           ) : items.length === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">No plan items yet.</p>
+            <p className="py-12 text-center text-sm text-muted-foreground">
+              {language === "ru" ? "План лечения пока пуст" : "Davolash rejasi hali tuzilmagan."}
+            </p>
           ) : (
             <div className="overflow-hidden rounded-md border">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <th className="px-3 py-2 font-semibold">Treatment</th>
-                    <th className="px-3 py-2 font-semibold">Tooth</th>
-                    <th className="px-3 py-2 text-right font-semibold">Fee</th>
-                    <th className="px-3 py-2 font-semibold">Status</th>
+                    <th className="px-3 py-2 font-semibold">{t("treatmentType")}</th>
+                    <th className="px-3 py-2 font-semibold">{t("toothNumber")}</th>
+                    <th className="px-3 py-2 text-right font-semibold">{t("estimatedFee")}</th>
+                    <th className="px-3 py-2 font-semibold">{t("status")}</th>
                     <th className="px-3 py-2"></th>
                   </tr>
                 </thead>
@@ -166,7 +181,7 @@ export function TreatmentPlan({ patientId }: { patientId: number }) {
                   {items.map((i) => {
                     const palette = colorClasses(i.treatment_color || "sky");
                     return (
-                      <tr key={i.id} className="border-b last:border-0">
+                      <tr key={i.id} className="border-b last:border-0 hover:bg-muted/20">
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2">
                             <span className={cn("inline-block h-2 w-2 rounded-full", palette.dot)} />
@@ -178,23 +193,23 @@ export function TreatmentPlan({ patientId }: { patientId: number }) {
                             )}
                           </div>
                         </td>
-                        <td className="px-3 py-2">{i.tooth ?? "—"}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">${i.fee.toFixed(2)}</td>
+                        <td className="px-3 py-2 font-medium">{i.tooth ?? "—"}</td>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatCurrency(i.fee, language)}</td>
                         <td className="px-3 py-2">
                           <Select value={i.status} onValueChange={(v) => setStatus(i.id, v as TreatmentPlanStatus)}>
-                            <SelectTrigger className={cn("h-7 w-[140px] text-xs", STATUS_STYLE[i.status])}>
+                            <SelectTrigger className={cn("h-7 w-[150px] text-xs", STATUS_STYLE[i.status])}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               {STATUSES.map((s) => (
-                                <SelectItem key={s} value={s}>{capitalize(s)}</SelectItem>
+                                <SelectItem key={s} value={s}>{getStatusLabel(s)}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </td>
                         <td className="px-3 py-2 text-right">
-                          <Button variant="ghost" size="icon" onClick={() => remove(i.id)} aria-label="Delete">
-                            <Trash2 className="h-4 w-4 text-muted-foreground" />
+                          <Button variant="ghost" size="icon" onClick={() => remove(i.id)} aria-label={t("delete")}>
+                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                           </Button>
                         </td>
                       </tr>
@@ -210,16 +225,12 @@ export function TreatmentPlan({ patientId }: { patientId: number }) {
   );
 }
 
-function SummaryCard({ label, amount, tone }: { label: string; amount: number; tone: "sky" | "emerald" | "slate" }) {
+function SummaryCard({ label, amount, tone, lang }: { label: string; amount: number; tone: "sky" | "emerald" | "slate"; lang: "uz" | "ru" }) {
   const palette = colorClasses(tone);
   return (
-    <div className={cn("rounded-lg border p-4", palette.bg, palette.border)}>
+    <div className={cn("rounded-xl border p-4 shadow-2xs", palette.bg, palette.border)}>
       <div className={cn("text-xs font-semibold uppercase tracking-wider", palette.text, "opacity-80")}>{label}</div>
-      <div className={cn("mt-1 text-2xl font-bold tabular-nums", palette.text)}>${amount.toFixed(2)}</div>
+      <div className={cn("mt-1 text-xl font-bold tabular-nums", palette.text)}>{formatCurrency(amount, lang)}</div>
     </div>
   );
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

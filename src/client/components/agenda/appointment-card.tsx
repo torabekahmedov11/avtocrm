@@ -9,11 +9,9 @@ interface Props {
   heightPx: number;
 }
 
-/** "10:20 AM" style */
+/** 24-hour "HH:MM" format */
 function timeLabel(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return formatTime(iso);
 }
 
 export function AppointmentCard({ appointment, onClick, topPx, heightPx }: Props) {
@@ -41,7 +39,7 @@ export function AppointmentCard({ appointment, onClick, topPx, heightPx }: Props
   const patientName =
     appointment.patient_first_name || appointment.patient_last_name
       ? `${appointment.patient_first_name ?? ""} ${appointment.patient_last_name ?? ""}`.trim()
-      : appointment.title || "Unnamed";
+      : appointment.title || "Bemor";
 
   const isCompact = heightPx < 56;
   const isVeryCompact = heightPx < 36;
@@ -77,5 +75,3 @@ export function AppointmentCard({ appointment, onClick, topPx, heightPx }: Props
     </button>
   );
 }
-
-void formatTime;

@@ -15,16 +15,13 @@ interface Props {
 const PX_PER_MIN = 1.6;           // ~ 24px per 15min row
 const HEADER_H = 56;              // operatory header height
 
-/** "6 AM" style hour label. */
+/** 24-hour format label: "08:00", "14:00" */
 function hourLabel(h: number): string {
-  if (h === 0) return "12 AM";
-  if (h === 12) return "12 PM";
-  if (h < 12) return `${h} AM`;
-  return `${h - 12} PM`;
+  return `${String(h).padStart(2, "0")}:00`;
 }
 
 export function DayGrid({ date, operatories, appointments, onSlotClick, onAppointmentClick }: Props) {
-  const { settings } = useApp();
+  const { settings, language } = useApp();
   const DAY_START_MIN = settings.day_start_minute;
   const DAY_END_MIN = settings.day_end_minute;
   const SLOT_MIN = settings.slot_minutes;
@@ -64,8 +61,14 @@ export function DayGrid({ date, operatories, appointments, onSlotClick, onAppoin
     return (
       <div className="flex flex-1 items-center justify-center p-12 text-center text-muted-foreground">
         <div>
-          <p className="font-medium text-foreground">No operatories yet</p>
-          <p className="mt-1 text-sm">Add at least one operatory in Settings to start scheduling.</p>
+          <p className="font-medium text-foreground">
+            {language === "ru" ? "Кабинеты не добавлены" : "Hali kabinetlar qo'shilmagan"}
+          </p>
+          <p className="mt-1 text-sm">
+            {language === "ru"
+              ? "Добавьте хотя бы один кабинет в Настройках для начала работы."
+              : "Jadval tuzish uchun Sozlamalarda kamida bitta kabinet qo'shing."}
+          </p>
         </div>
       </div>
     );
@@ -143,7 +146,7 @@ export function DayGrid({ date, operatories, appointments, onSlotClick, onAppoin
                       className="absolute inset-x-0 cursor-cell transition-colors hover:bg-accent/30"
                       style={{ top: i * PX_PER_SLOT, height: PX_PER_SLOT }}
                       tabIndex={-1}
-                      aria-label={`Add appointment at ${String(Math.floor(slotMin / 60)).padStart(2, "0")}:${String(slotMin % 60).padStart(2, "0")}`}
+                      aria-label={`${String(Math.floor(slotMin / 60)).padStart(2, "0")}:${String(slotMin % 60).padStart(2, "0")}`}
                     />
                   );
                 })}

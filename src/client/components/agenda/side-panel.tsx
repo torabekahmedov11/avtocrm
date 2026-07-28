@@ -15,6 +15,7 @@ const TO_MAKE_SOURCES: ToMakeSource[] = ["reception", "patient", "system"];
 
 export function AgendaSidePanel() {
   const [collapsed, setCollapsed] = useState(false);
+  const { t } = useApp();
 
   if (collapsed) {
     return (
@@ -22,7 +23,7 @@ export function AgendaSidePanel() {
         type="button"
         onClick={() => setCollapsed(false)}
         className="flex h-full w-8 items-center justify-center border-l bg-card text-muted-foreground transition-colors hover:bg-accent"
-        aria-label="Expand side panel"
+        aria-label={t("actions")}
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
@@ -32,18 +33,18 @@ export function AgendaSidePanel() {
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-l bg-card">
       <div className="flex items-center justify-between border-b px-3 py-2">
-        <span className="text-sm font-semibold">Side panel</span>
-        <Button variant="ghost" size="icon" onClick={() => setCollapsed(true)} aria-label="Collapse side panel">
+        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t("actions")}</span>
+        <Button variant="ghost" size="icon" onClick={() => setCollapsed(true)} aria-label={t("close")}>
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
       <Tabs defaultValue="waiting" className="flex flex-1 flex-col">
         <TabsList className="mx-3 mt-3">
-          <TabsTrigger value="waiting" className="flex-1">
-            <ListChecks className="h-3.5 w-3.5" /> Waiting list
+          <TabsTrigger value="waiting" className="flex-1 text-xs font-semibold">
+            <ListChecks className="h-3.5 w-3.5" /> {t("waitingListTitle")}
           </TabsTrigger>
-          <TabsTrigger value="to-make" className="flex-1">
-            <CalendarPlus className="h-3.5 w-3.5" /> To make
+          <TabsTrigger value="to-make" className="flex-1 text-xs font-semibold">
+            <CalendarPlus className="h-3.5 w-3.5" /> {t("appointmentsToMakeTitle")}
           </TabsTrigger>
         </TabsList>
         <TabsContent value="waiting" className="flex-1 overflow-auto px-3 pb-3">
@@ -61,21 +62,22 @@ export function AgendaSidePanel() {
 
 function WaitingListPanel() {
   const app = useApp();
+  const { t, language } = app;
   const [adding, setAdding] = useState(false);
 
   return (
     <div className="space-y-3">
       <div className="text-xs text-muted-foreground">
-        Patients ready to be slotted into a sooner opening.
+        {language === "ru" ? "Пациенты, ожидающие освобождения времени" : "Vaqtroq bo'sh vaqtga yozilishni kutayotgan bemorlar."}
       </div>
       <Button size="sm" variant="outline" onClick={() => setAdding(true)} className="w-full">
-        <Plus className="h-4 w-4" /> Add to waiting list
+        <Plus className="h-4 w-4" /> {t("add")}
       </Button>
       {adding && <AddWaitingListForm onClose={() => setAdding(false)} />}
 
       {app.waitingList.length === 0 && !adding ? (
         <div className="rounded-md border border-dashed py-6 text-center text-xs text-muted-foreground">
-          Waiting list is empty.
+          {language === "ru" ? "Лист ожидания пуст" : "Kutish ro'yxati bo'sh."}
         </div>
       ) : (
         <div className="space-y-2">
@@ -90,9 +92,11 @@ function WaitingListPanel() {
 
 function WaitingListRow({ entry }: { entry: WaitingListEntry }) {
   const app = useApp();
+  const { language, t } = app;
   const palette = colorClasses(entry.treatment_color || "sky");
   async function remove() {
-    if (!confirm("Remove from waiting list?")) return;
+    const msg = language === "ru" ? "Удалить из листа ожидания?" : "Kutish ro'yxatidan o'chirilsinmi?";
+    if (!confirm(msg)) return;
     try {
       await api("DELETE", `/api/waiting-list/${entry.id}`);
       await app.refreshSidePanels();
@@ -101,27 +105,27 @@ function WaitingListRow({ entry }: { entry: WaitingListEntry }) {
     }
   }
   return (
-    <Card>
+    <Card className="shadow-2xs">
       <CardContent className="space-y-1 p-3 text-sm">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <div className="font-medium">{entry.first_name} {entry.last_name}</div>
+            <div className="font-semibold text-foreground">{entry.last_name} {entry.first_name}</div>
             {entry.date_of_birth && (
               <div className="text-xs text-muted-foreground">{formatDate(entry.date_of_birth)}</div>
             )}
           </div>
-          <Button size="icon" variant="ghost" onClick={remove} aria-label="Remove">
-            <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+          <Button size="icon" variant="ghost" onClick={remove} aria-label={t("delete")}>
+            <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           {entry.treatment_name && (
-            <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5", palette.bg, palette.text)}>
+            <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-medium", palette.bg, palette.text)}>
               <span className={cn("inline-block h-1.5 w-1.5 rounded-full", palette.dot)} />
               {entry.treatment_name}
             </span>
           )}
-          <span className="text-muted-foreground">{entry.duration_minutes} min</span>
+          <span className="text-muted-foreground font-medium">{entry.duration_minutes} {language === "ru" ? "мин" : "daq"}</span>
           {entry.practitioner_name && (
             <span className="text-muted-foreground">· {entry.practitioner_name}</span>
           )}
@@ -134,6 +138,8 @@ function WaitingListRow({ entry }: { entry: WaitingListEntry }) {
 
 function AddWaitingListForm({ onClose }: { onClose: () => void }) {
   const app = useApp();
+  const { t, language } = app;
+
   const [patientLabel, setPatientLabel] = useState("");
   const [patientId, setPatientId] = useState<number | null>(null);
   const [results, setResults] = useState<Patient[]>([]);
@@ -147,19 +153,19 @@ function AddWaitingListForm({ onClose }: { onClose: () => void }) {
     const q = patientLabel.trim();
     if (!q || patientId) { setResults([]); return; }
     let cancelled = false;
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       try {
         const r = await api<{ patients: Patient[] }>("GET", `/api/patients?q=${encodeURIComponent(q)}`);
         if (!cancelled) setResults(r.patients.slice(0, 5));
       } catch { /* ignore */ }
     }, 200);
-    return () => { cancelled = true; clearTimeout(t); };
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [patientLabel, patientId]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!patientId && !patientLabel.trim()) {
-      app.setError("Type a patient name");
+      app.setError(language === "ru" ? "Введите имя пациента" : "Bemor ismini kiriting");
       return;
     }
     setBusy(true);
@@ -169,7 +175,7 @@ function AddWaitingListForm({ onClose }: { onClose: () => void }) {
         const [first, ...rest] = patientLabel.trim().split(/\s+/);
         const created = await app.createPatient({
           first_name: first,
-          last_name: rest.join(" ") || "(unknown)",
+          last_name: rest.join(" ") || "(noma'lum)",
         });
         pid = created.id;
       }
@@ -191,13 +197,13 @@ function AddWaitingListForm({ onClose }: { onClose: () => void }) {
 
   return (
     <form onSubmit={submit} className="space-y-2 rounded-md border bg-muted/30 p-3">
-      <FieldSm label="Patient">
+      <FieldSm label={t("patientName")}>
         <div className="relative">
           <Input
             value={patientLabel}
             onChange={(e) => { setPatientLabel(e.target.value); setPatientId(null); }}
-            placeholder="Type a name…"
-            className="h-8"
+            placeholder={t("search")}
+            className="h-8 text-xs"
           />
           {results.length > 0 && !patientId && (
             <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border bg-popover shadow-md">
@@ -205,47 +211,44 @@ function AddWaitingListForm({ onClose }: { onClose: () => void }) {
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => { setPatientId(p.id); setPatientLabel(`${p.first_name} ${p.last_name}`); setResults([]); }}
+                  onClick={() => { setPatientId(p.id); setPatientLabel(`${p.last_name} ${p.first_name}`); setResults([]); }}
                   className="block w-full px-3 py-1.5 text-left text-xs hover:bg-accent"
                 >
-                  <div className="font-medium">{p.first_name} {p.last_name}</div>
-                  <div className="text-muted-foreground">{p.date_of_birth ?? p.email ?? p.phone ?? "—"}</div>
+                  <div className="font-semibold">{p.last_name} {p.first_name}</div>
+                  <div className="text-muted-foreground">{p.phone ?? p.date_of_birth ?? "—"}</div>
                 </button>
               ))}
             </div>
           )}
-          {patientLabel && !patientId && results.length === 0 && (
-            <p className="mt-1 text-[10px] text-muted-foreground">A new patient will be created on save.</p>
-          )}
         </div>
       </FieldSm>
-      <FieldSm label="Treatment">
+      <FieldSm label={t("treatmentType")}>
         <Select value={treatmentTypeId} onValueChange={setTreatmentTypeId}>
-          <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">— None —</SelectItem>
-            {app.treatmentTypes.map((t) => <SelectItem key={t.id} value={t.id.toString()}>{t.code} · {t.name}</SelectItem>)}
+            <SelectItem value="none">— {t("none")} —</SelectItem>
+            {app.treatmentTypes.map((tr) => <SelectItem key={tr.id} value={tr.id.toString()}>{tr.code} · {tr.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </FieldSm>
-      <FieldSm label="Practitioner">
+      <FieldSm label={t("practitioner")}>
         <Select value={practitionerId} onValueChange={setPractitionerId}>
-          <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">— Any —</SelectItem>
+            <SelectItem value="none">— {t("all")} —</SelectItem>
             {app.practitioners.map((p) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </FieldSm>
-      <FieldSm label="Duration (min)">
-        <Input type="number" min="5" value={duration} onChange={(e) => setDuration(e.target.value)} className="h-8" />
+      <FieldSm label={t("duration")}>
+        <Input type="number" min="5" value={duration} onChange={(e) => setDuration(e.target.value)} className="h-8 text-xs" />
       </FieldSm>
-      <FieldSm label="Notes">
-        <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="h-8" />
+      <FieldSm label={t("notes")}>
+        <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="h-8 text-xs" />
       </FieldSm>
       <div className="flex gap-2 pt-1">
-        <Button size="sm" type="submit" disabled={busy} className="flex-1">Add</Button>
-        <Button size="sm" type="button" variant="outline" onClick={onClose}>Cancel</Button>
+        <Button size="sm" type="submit" disabled={busy} className="flex-1">{t("save")}</Button>
+        <Button size="sm" type="button" variant="outline" onClick={onClose}>{t("cancel")}</Button>
       </div>
     </form>
   );
@@ -255,6 +258,7 @@ function AddWaitingListForm({ onClose }: { onClose: () => void }) {
 
 function ToMakePanel() {
   const app = useApp();
+  const { t } = app;
   const [adding, setAdding] = useState(false);
   const [filter, setFilter] = useState<ToMakeSource | "all">("all");
 
@@ -265,24 +269,16 @@ function ToMakePanel() {
   return (
     <div className="space-y-3">
       <div className="text-xs text-muted-foreground">
-        Recall and follow-up bookings to schedule.
-      </div>
-      <div className="flex gap-1">
-        <Pill active={filter === "all"} onClick={() => setFilter("all")}>All ({app.appointmentsToMake.length})</Pill>
-        {TO_MAKE_SOURCES.map((s) => (
-          <Pill key={s} active={filter === s} onClick={() => setFilter(s)}>
-            {capitalize(s)} ({app.appointmentsToMake.filter((a) => a.source === s).length})
-          </Pill>
-        ))}
+        {t("appointmentsToMakeTitle")}
       </div>
       <Button size="sm" variant="outline" onClick={() => setAdding(true)} className="w-full">
-        <Plus className="h-4 w-4" /> New entry
+        <Plus className="h-4 w-4" /> {t("add")}
       </Button>
       {adding && <AddToMakeForm onClose={() => setAdding(false)} />}
 
       {visible.length === 0 && !adding ? (
         <div className="rounded-md border border-dashed py-6 text-center text-xs text-muted-foreground">
-          Nothing to schedule.
+          {t("none")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -295,9 +291,11 @@ function ToMakePanel() {
 
 function ToMakeRow({ entry }: { entry: AppointmentToMake }) {
   const app = useApp();
+  const { language, t } = app;
   const palette = colorClasses(entry.treatment_color || "sky");
   async function remove() {
-    if (!confirm("Remove this entry?")) return;
+    const msg = language === "ru" ? "Удалить запись?" : "O'chirilsinmi?";
+    if (!confirm(msg)) return;
     try {
       await api("DELETE", `/api/appointments-to-make/${entry.id}`);
       await app.refreshSidePanels();
@@ -306,29 +304,28 @@ function ToMakeRow({ entry }: { entry: AppointmentToMake }) {
     }
   }
   return (
-    <Card>
+    <Card className="shadow-2xs">
       <CardContent className="space-y-1 p-3 text-sm">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <div className="font-medium">{entry.first_name} {entry.last_name}</div>
+            <div className="font-semibold text-foreground">{entry.last_name} {entry.first_name}</div>
             {entry.date_of_birth && (
               <div className="text-xs text-muted-foreground">{formatDate(entry.date_of_birth)}</div>
             )}
           </div>
-          <Button size="icon" variant="ghost" onClick={remove} aria-label="Remove">
-            <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+          <Button size="icon" variant="ghost" onClick={remove} aria-label={t("delete")}>
+            <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           {entry.treatment_name && (
-            <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5", palette.bg, palette.text)}>
+            <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-medium", palette.bg, palette.text)}>
               <span className={cn("inline-block h-1.5 w-1.5 rounded-full", palette.dot)} />
               {entry.treatment_name}
             </span>
           )}
-          <span className="text-muted-foreground">via {entry.source}</span>
           {entry.due_after && (
-            <span className="text-muted-foreground">· due after {formatDate(entry.due_after)}</span>
+            <span className="text-muted-foreground">· {formatDate(entry.due_after)}</span>
           )}
         </div>
         {entry.notes && <p className="text-xs text-muted-foreground">{entry.notes}</p>}
@@ -339,6 +336,8 @@ function ToMakeRow({ entry }: { entry: AppointmentToMake }) {
 
 function AddToMakeForm({ onClose }: { onClose: () => void }) {
   const app = useApp();
+  const { t, language } = app;
+
   const [patientLabel, setPatientLabel] = useState("");
   const [patientId, setPatientId] = useState<number | null>(null);
   const [results, setResults] = useState<Patient[]>([]);
@@ -352,19 +351,19 @@ function AddToMakeForm({ onClose }: { onClose: () => void }) {
     const q = patientLabel.trim();
     if (!q || patientId) { setResults([]); return; }
     let cancelled = false;
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       try {
         const r = await api<{ patients: Patient[] }>("GET", `/api/patients?q=${encodeURIComponent(q)}`);
         if (!cancelled) setResults(r.patients.slice(0, 5));
       } catch { /* ignore */ }
     }, 200);
-    return () => { cancelled = true; clearTimeout(t); };
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [patientLabel, patientId]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!patientId && !patientLabel.trim()) {
-      app.setError("Type a patient name");
+      app.setError(language === "ru" ? "Введите имя пациента" : "Bemor ismini kiriting");
       return;
     }
     setBusy(true);
@@ -374,7 +373,7 @@ function AddToMakeForm({ onClose }: { onClose: () => void }) {
         const [first, ...rest] = patientLabel.trim().split(/\s+/);
         const created = await app.createPatient({
           first_name: first,
-          last_name: rest.join(" ") || "(unknown)",
+          last_name: rest.join(" ") || "(noma'lum)",
         });
         pid = created.id;
       }
@@ -396,47 +395,39 @@ function AddToMakeForm({ onClose }: { onClose: () => void }) {
 
   return (
     <form onSubmit={submit} className="space-y-2 rounded-md border bg-muted/30 p-3">
-      <FieldSm label="Patient">
+      <FieldSm label={t("patientName")}>
         <div className="relative">
-          <Input value={patientLabel} onChange={(e) => { setPatientLabel(e.target.value); setPatientId(null); }} placeholder="Type a name…" className="h-8" />
+          <Input value={patientLabel} onChange={(e) => { setPatientLabel(e.target.value); setPatientId(null); }} placeholder={t("search")} className="h-8 text-xs" />
           {results.length > 0 && !patientId && (
             <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border bg-popover shadow-md">
               {results.map((p) => (
-                <button key={p.id} type="button" onClick={() => { setPatientId(p.id); setPatientLabel(`${p.first_name} ${p.last_name}`); setResults([]); }} className="block w-full px-3 py-1.5 text-left text-xs hover:bg-accent">
-                  <div className="font-medium">{p.first_name} {p.last_name}</div>
-                  <div className="text-muted-foreground">{p.date_of_birth ?? p.email ?? p.phone ?? "—"}</div>
+                <button key={p.id} type="button" onClick={() => { setPatientId(p.id); setPatientLabel(`${p.last_name} ${p.first_name}`); setResults([]); }} className="block w-full px-3 py-1.5 text-left text-xs hover:bg-accent">
+                  <div className="font-semibold">{p.last_name} {p.first_name}</div>
+                  <div className="text-muted-foreground">{p.phone ?? p.date_of_birth ?? "—"}</div>
                 </button>
               ))}
             </div>
           )}
         </div>
       </FieldSm>
-      <FieldSm label="Treatment">
+      <FieldSm label={t("treatmentType")}>
         <Select value={treatmentTypeId} onValueChange={setTreatmentTypeId}>
-          <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">— None —</SelectItem>
-            {app.treatmentTypes.map((t) => <SelectItem key={t.id} value={t.id.toString()}>{t.code} · {t.name}</SelectItem>)}
+            <SelectItem value="none">— {t("none")} —</SelectItem>
+            {app.treatmentTypes.map((tr) => <SelectItem key={tr.id} value={tr.id.toString()}>{tr.code} · {tr.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </FieldSm>
-      <FieldSm label="Source">
-        <Select value={source} onValueChange={(v) => setSource(v as ToMakeSource)}>
-          <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {TO_MAKE_SOURCES.map((s) => <SelectItem key={s} value={s}>{capitalize(s)}</SelectItem>)}
-          </SelectContent>
-        </Select>
+      <FieldSm label={t("date")}>
+        <Input type="date" value={dueAfter} onChange={(e) => setDueAfter(e.target.value)} className="h-8 text-xs" />
       </FieldSm>
-      <FieldSm label="Due after">
-        <Input type="date" value={dueAfter} onChange={(e) => setDueAfter(e.target.value)} className="h-8" />
-      </FieldSm>
-      <FieldSm label="Notes">
-        <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="h-8" />
+      <FieldSm label={t("notes")}>
+        <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="h-8 text-xs" />
       </FieldSm>
       <div className="flex gap-2 pt-1">
-        <Button size="sm" type="submit" disabled={busy} className="flex-1">Add</Button>
-        <Button size="sm" type="button" variant="outline" onClick={onClose}>Cancel</Button>
+        <Button size="sm" type="submit" disabled={busy} className="flex-1">{t("save")}</Button>
+        <Button size="sm" type="button" variant="outline" onClick={onClose}>{t("cancel")}</Button>
       </div>
     </form>
   );
@@ -445,27 +436,8 @@ function AddToMakeForm({ onClose }: { onClose: () => void }) {
 function FieldSm({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</Label>
+      <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</Label>
       {children}
     </div>
   );
-}
-
-function Pill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-colors",
-        active ? "border-foreground/30 bg-foreground/10 text-foreground" : "border-border text-muted-foreground hover:bg-accent",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

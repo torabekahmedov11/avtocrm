@@ -20,11 +20,8 @@ import type { Appointment, AppointmentKind, AppointmentStatus, NewAppointment, P
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  /** When editing an existing appointment. */
   appointment: Appointment | null;
-  /** Used when creating a new one — the day the user is currently viewing. */
   date: string;
-  /** Default operatory + start minutes for a fresh appointment. */
   defaults?: { operatoryId: number; minutesFromMidnight: number };
 }
 
@@ -33,6 +30,8 @@ const KINDS: AppointmentKind[] = ["patient", "break", "lunch", "block"];
 
 export function AppointmentDialog({ open, onOpenChange, appointment, date, defaults }: Props) {
   const app = useApp();
+  const { t, language } = app;
+
   const [kind, setKind] = useState<AppointmentKind>("patient");
   const [status, setStatus] = useState<AppointmentStatus>("scheduled");
   const [operatoryId, setOperatoryId] = useState<number | null>(null);
@@ -41,13 +40,12 @@ export function AppointmentDialog({ open, onOpenChange, appointment, date, defau
   const [patientId, setPatientId] = useState<number | null>(null);
   const [patientLabel, setPatientLabel] = useState("");
   const [patientResults, setPatientResults] = useState<Patient[]>([]);
-  const [startTime, setStartTime] = useState(""); // 'HH:MM'
+  const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Initialize from props.
   useEffect(() => {
     if (!open) return;
     if (appointment) {
@@ -58,7 +56,7 @@ export function AppointmentDialog({ open, onOpenChange, appointment, date, defau
       setTreatmentTypeId(appointment.treatment_type_id);
       setPatientId(appointment.patient_id);
       setPatientLabel(
-        [appointment.patient_first_name, appointment.patient_last_name].filter(Boolean).join(" "),
+        [appointment.patient_last_name, appointment.patient_first_name].filter(Boolean).join(" "),
       );
       setStartTime(appointment.start_time.slice(11, 16));
       setEndTime(appointment.end_time.slice(11, 16));
@@ -81,7 +79,6 @@ export function AppointmentDialog({ open, onOpenChange, appointment, date, defau
     }
   }, [open, appointment, defaults, app.operatories, app.treatmentTypes]);
 
-  // Live search patients by typed label (only when no patient is yet selected).
   useEffect(() => {
     if (kind !== "patient") return;
     const q = patientLabel.trim();
@@ -91,17 +88,14 @@ export function AppointmentDialog({ open, onOpenChange, appointment, date, defau
       try {
         const data = await api<{ patients: Patient[] }>("GET", `/api/patients?q=${encodeURIComponent(q)}`);
         if (!cancelled) setPatientResults(data.patients.slice(0, 6));
-      } catch {
-        /* ignore */
-      }
+      } catch { /* ignore */ }
     }, 200);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [patientLabel, patientId, kind]);
 
-  // When treatment type changes, push end time accordingly.
   useEffect(() => {
     if (!treatmentTypeId || !startTime) return;
-    const tt = app.treatmentTypes.find((t) => t.id === treatmentTypeId);
+    const tt = app.treatmentTypes.find((tr) => tr.id === treatmentTypeId);
     if (!tt) return;
     const startMin = parseHHMM(startTime);
     setEndTime(toHHMM(startMin + tt.duration_minutes));
@@ -109,32 +103,50 @@ export function AppointmentDialog({ open, onOpenChange, appointment, date, defau
 
   const isCreate = !appointment;
 
-  const dialogTitle = useMemo(() => {
-    if (isCreate) return "New appointment";
-    return "Edit appointment";
-  }, [isCreate]);
+  const dialogTitleText = isCreate ? t("newAppointment") : t("editAppointment");
+
+  const getKindLabel = (k: AppointmentKind) => {
+    switch (k) {
+      case "patient": return t("kindPatient");
+      case "break": return t("kindBreak");
+      case "lunch": return t("kindLunch");
+      case "block": return t("kindBlock");
+      default: return k;
+    }
+  };
+
+  const getStatusLabel = (s: AppointmentStatus) => {
+    switch (s) {
+      case "scheduled": return t("scheduled");
+      case "arrived": return t("arrived");
+      case "in_chair": return t("inChair");
+      case "completed": return t("completed");
+      case "no_show": return t("noShow");
+      case "cancelled": return t("cancelled");
+      default: return s;
+    }
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!operatoryId) {
-      app.setError("Select an operatory");
+      app.setError(language === "ru" ? "Выберите кабинет" : "Kabinetni tanlang");
       return;
     }
     const startMin = parseHHMM(startTime);
     const endMin = parseHHMM(endTime);
     if (Number.isNaN(startMin) || Number.isNaN(endMin) || endMin <= startMin) {
-      app.setError("End time must be after start time");
+      app.setError(language === "ru" ? "Время окончания должно быть позже начала" : "Tugash vaqti boshlanishidan keyin bo'lishi shart");
       return;
     }
     setSaving(true);
     try {
       let patient_id = patientId;
       if (kind === "patient" && !patient_id && patientLabel.trim()) {
-        // Auto-create a quick patient from the typed label.
         const [first, ...rest] = patientLabel.trim().split(/\s+/);
         const created = await app.createPatient({
           first_name: first,
-          last_name: rest.join(" ") || "(unknown)",
+          last_name: rest.join(" ") || "(noma'lum)",
         });
         patient_id = created.id;
       }
@@ -167,7 +179,8 @@ export function AppointmentDialog({ open, onOpenChange, appointment, date, defau
 
   async function handleDelete() {
     if (!appointment) return;
-    if (!confirm("Delete this appointment?")) return;
+    const confirmMsg = language === "ru" ? "Удалить эту запись?" : "Qabul yozuvini o'chirasizmi?";
+    if (!confirm(confirmMsg)) return;
     setSaving(true);
     try {
       await app.deleteAppointment(appointment.id);
@@ -183,23 +196,23 @@ export function AppointmentDialog({ open, onOpenChange, appointment, date, defau
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogTitle className="text-lg font-bold">{dialogTitleText}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Type">
+            <Field label={t("appointmentKind")}>
               <Select value={kind} onValueChange={(v) => setKind(v as AppointmentKind)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {KINDS.map((k) => (
-                    <SelectItem key={k} value={k}>{capitalize(k)}</SelectItem>
+                    <SelectItem key={k} value={k}>{getKindLabel(k)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Operatory">
+            <Field label={t("operatory")}>
               <Select value={operatoryId?.toString() ?? ""} onValueChange={(v) => setOperatoryId(parseInt(v, 10))}>
-                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("selectOperatory")} /></SelectTrigger>
                 <SelectContent>
                   {app.operatories.map((o) => (
                     <SelectItem key={o.id} value={o.id.toString()}>{o.name}</SelectItem>
@@ -211,12 +224,12 @@ export function AppointmentDialog({ open, onOpenChange, appointment, date, defau
 
           {kind === "patient" ? (
             <div className="space-y-3">
-              <Field label="Patient">
+              <Field label={t("patientName")}>
                 <div className="relative">
                   <Input
                     value={patientLabel}
                     onChange={(e) => { setPatientLabel(e.target.value); setPatientId(null); }}
-                    placeholder="Type a name…"
+                    placeholder={t("search")}
                   />
                   {patientResults.length > 0 && !patientId && (
                     <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border bg-popover shadow-md">
@@ -226,41 +239,38 @@ export function AppointmentDialog({ open, onOpenChange, appointment, date, defau
                           type="button"
                           onClick={() => {
                             setPatientId(p.id);
-                            setPatientLabel(`${p.first_name} ${p.last_name}`);
+                            setPatientLabel(`${p.last_name} ${p.first_name}`);
                             setPatientResults([]);
                           }}
                           className="block w-full px-3 py-2 text-left text-sm hover:bg-accent"
                         >
-                          <div className="font-medium">{p.first_name} {p.last_name}</div>
-                          <div className="text-xs text-muted-foreground">{p.date_of_birth ?? p.email ?? p.phone ?? "—"}</div>
+                          <div className="font-semibold">{p.last_name} {p.first_name}</div>
+                          <div className="text-xs text-muted-foreground">{p.phone ?? p.date_of_birth ?? "—"}</div>
                         </button>
                       ))}
                     </div>
                   )}
-                  {patientLabel && !patientId && patientResults.length === 0 && (
-                    <p className="mt-1 text-xs text-muted-foreground">A new patient will be created on save.</p>
-                  )}
                 </div>
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Practitioner">
+                <Field label={t("practitioner")}>
                   <Select value={practitionerId?.toString() ?? "none"} onValueChange={(v) => setPractitionerId(v === "none" ? null : parseInt(v, 10))}>
-                    <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t("selectPractitioner")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">— None —</SelectItem>
+                      <SelectItem value="none">— {t("none")} —</SelectItem>
                       {app.practitioners.map((p) => (
                         <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Treatment">
+                <Field label={t("treatmentType")}>
                   <Select value={treatmentTypeId?.toString() ?? "none"} onValueChange={(v) => setTreatmentTypeId(v === "none" ? null : parseInt(v, 10))}>
-                    <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t("selectTreatment")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">— None —</SelectItem>
-                      {app.treatmentTypes.map((t) => (
-                        <SelectItem key={t.id} value={t.id.toString()}>{t.code} · {t.name}</SelectItem>
+                      <SelectItem value="none">— {t("none")} —</SelectItem>
+                      {app.treatmentTypes.map((tr) => (
+                        <SelectItem key={tr.id} value={tr.id.toString()}>{tr.code} · {tr.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -268,46 +278,46 @@ export function AppointmentDialog({ open, onOpenChange, appointment, date, defau
               </div>
             </div>
           ) : (
-            <Field label="Title (optional)">
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === "lunch" ? "Lunch" : kind === "break" ? "Break" : "Block"} />
+            <Field label={t("name")}>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={getKindLabel(kind)} />
             </Field>
           )}
 
           <div className="grid grid-cols-3 gap-3">
-            <Field label="Start">
+            <Field label={t("time") + " (Boshlanishi)"}>
               <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
             </Field>
-            <Field label="End">
+            <Field label={t("time") + " (Tugashi)"}>
               <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
             </Field>
-            <Field label="Status">
+            <Field label={t("status")}>
               <Select value={status} onValueChange={(v) => setStatus(v as AppointmentStatus)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>{capitalize(s.replace("_", " "))}</SelectItem>
+                    <SelectItem key={s} value={s}>{getStatusLabel(s)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
           </div>
 
-          <Field label="Notes">
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+          <Field label={t("notes")}>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder={t("notePlaceholder")} />
           </Field>
 
           <DialogFooter className="items-center">
             {!isCreate && (
               <Button type="button" variant="ghost" onClick={handleDelete} disabled={saving} className="mr-auto text-destructive hover:bg-destructive/10 hover:text-destructive">
                 <Trash2 className="h-4 w-4" />
-                Delete
+                {t("delete")}
               </Button>
             )}
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : isCreate ? "Create" : "Save"}
+              {saving ? t("loading") : isCreate ? t("add") : t("save")}
             </Button>
           </DialogFooter>
         </form>
@@ -319,7 +329,7 @@ export function AppointmentDialog({ open, onOpenChange, appointment, date, defau
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <Label className="text-xs font-semibold text-foreground/90">{label}</Label>
       {children}
     </div>
   );
@@ -336,8 +346,4 @@ function parseHHMM(s: string): number {
   return h * 60 + m;
 }
 
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-void minutesOfDay; // imported for type completeness only
+void minutesOfDay;

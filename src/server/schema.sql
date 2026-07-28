@@ -1,17 +1,34 @@
+-- ── Reset existing tables to ensure clean Uzbekistan seed data ──
+DROP TABLE IF EXISTS appointments_to_make;
+DROP TABLE IF EXISTS lab_cases;
+DROP TABLE IF EXISTS insurance_plans;
+DROP TABLE IF EXISTS waiting_list;
+DROP TABLE IF EXISTS invoice_items;
+DROP TABLE IF EXISTS invoices;
+DROP TABLE IF EXISTS tooth_conditions;
+DROP TABLE IF EXISTS clinical_notes;
+DROP TABLE IF EXISTS treatment_plan_items;
+DROP TABLE IF EXISTS appointments;
+DROP TABLE IF EXISTS patients;
+DROP TABLE IF EXISTS treatment_types;
+DROP TABLE IF EXISTS practitioners;
+DROP TABLE IF EXISTS operatories;
+DROP TABLE IF EXISTS settings;
+
 -- ── Practice settings (key/value) ───────────────────────────────
-CREATE TABLE IF NOT EXISTS settings (
+CREATE TABLE settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Defaults: day starts 07:00, ends 19:00. Stored as minutes from midnight.
-INSERT OR IGNORE INTO settings (key, value) VALUES ('day_start_minute', '420');
-INSERT OR IGNORE INTO settings (key, value) VALUES ('day_end_minute', '1140');
-INSERT OR IGNORE INTO settings (key, value) VALUES ('slot_minutes', '15');
+-- Defaults: day starts 08:00 (480 min), ends 19:00 (1140 min).
+INSERT INTO settings (key, value) VALUES ('day_start_minute', '480');
+INSERT INTO settings (key, value) VALUES ('day_end_minute', '1140');
+INSERT INTO settings (key, value) VALUES ('slot_minutes', '15');
 
 -- ── Operatories (treatment rooms / chairs) ──────────────────────
-CREATE TABLE IF NOT EXISTS operatories (
+CREATE TABLE operatories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   color TEXT NOT NULL DEFAULT 'sky',
@@ -20,7 +37,7 @@ CREATE TABLE IF NOT EXISTS operatories (
 );
 
 -- ── Practitioners (dentists, hygienists, assistants) ────────────
-CREATE TABLE IF NOT EXISTS practitioners (
+CREATE TABLE practitioners (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'dentist', -- 'dentist' | 'hygienist' | 'assistant'
@@ -31,10 +48,10 @@ CREATE TABLE IF NOT EXISTS practitioners (
 );
 
 -- ── Treatment types (procedures) ────────────────────────────────
-CREATE TABLE IF NOT EXISTS treatment_types (
+CREATE TABLE treatment_types (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  code TEXT NOT NULL,                   -- e.g. 'D1110' (ADA code) or short label
-  name TEXT NOT NULL,                   -- e.g. 'Adult Prophylaxis'
+  code TEXT NOT NULL,                   -- e.g. 'FILL', 'CROWN'
+  name TEXT NOT NULL,
   duration_minutes INTEGER NOT NULL DEFAULT 30,
   default_fee REAL NOT NULL DEFAULT 0,
   color TEXT NOT NULL DEFAULT 'sky',
@@ -42,7 +59,7 @@ CREATE TABLE IF NOT EXISTS treatment_types (
 );
 
 -- ── Patients ────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS patients (
+CREATE TABLE patients (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
@@ -50,16 +67,16 @@ CREATE TABLE IF NOT EXISTS patients (
   email TEXT,
   phone TEXT,
   address TEXT,
-  medical_alerts TEXT,                  -- comma-separated tags: 'allergy:penicillin,heart-condition'
+  medical_alerts TEXT,                  -- comma-separated tags: 'allergy:penicillin,diabet'
   notes TEXT,
-  referral_source TEXT,                 -- e.g. 'Google', 'Facebook', 'Yelp', 'Friend', 'Walk-in', 'Other'
+  referral_source TEXT,                 -- e.g. 'Tavsiya', 'Instagram', 'Telegram', 'Walk-in'
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_patients_name ON patients(last_name, first_name);
+CREATE INDEX idx_patients_name ON patients(last_name, first_name);
 
 -- ── Appointments ────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS appointments (
+CREATE TABLE appointments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   patient_id INTEGER REFERENCES patients(id) ON DELETE SET NULL,
   practitioner_id INTEGER REFERENCES practitioners(id) ON DELETE SET NULL,
@@ -69,22 +86,22 @@ CREATE TABLE IF NOT EXISTS appointments (
   end_time TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'scheduled', -- 'scheduled' | 'arrived' | 'in_chair' | 'completed' | 'no_show' | 'cancelled'
   kind TEXT NOT NULL DEFAULT 'patient',     -- 'patient' | 'break' | 'lunch' | 'block'
-  title TEXT,                           -- override title (used for break/lunch/block)
+  title TEXT,
   notes TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_appointments_start ON appointments(start_time);
-CREATE INDEX IF NOT EXISTS idx_appointments_op_start ON appointments(operatory_id, start_time);
-CREATE INDEX IF NOT EXISTS idx_appointments_patient ON appointments(patient_id);
+CREATE INDEX idx_appointments_start ON appointments(start_time);
+CREATE INDEX idx_appointments_op_start ON appointments(operatory_id, start_time);
+CREATE INDEX idx_appointments_patient ON appointments(patient_id);
 
 -- ── Treatment plans ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS treatment_plan_items (
+CREATE TABLE treatment_plan_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
   treatment_type_id INTEGER REFERENCES treatment_types(id) ON DELETE SET NULL,
-  tooth TEXT,                           -- e.g. '14' (FDI) or '#3' (Universal)
-  surface TEXT,                         -- 'M' | 'O' | 'D' | 'B' | 'L' | combinations
+  tooth TEXT,                           -- e.g. '14' (FDI)
+  surface TEXT,                         -- 'M' | 'O' | 'D' | 'B' | 'L'
   fee REAL NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'planned', -- 'planned' | 'accepted' | 'completed' | 'declined'
   notes TEXT,
@@ -92,10 +109,10 @@ CREATE TABLE IF NOT EXISTS treatment_plan_items (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_plan_patient ON treatment_plan_items(patient_id);
+CREATE INDEX idx_plan_patient ON treatment_plan_items(patient_id);
 
 -- ── Clinical notes ──────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS clinical_notes (
+CREATE TABLE clinical_notes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
   practitioner_id INTEGER REFERENCES practitioners(id) ON DELETE SET NULL,
@@ -104,22 +121,22 @@ CREATE TABLE IF NOT EXISTS clinical_notes (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_notes_patient ON clinical_notes(patient_id, note_date DESC);
+CREATE INDEX idx_notes_patient ON clinical_notes(patient_id, note_date DESC);
 
 -- ── Tooth chart conditions ──────────────────────────────────────
-CREATE TABLE IF NOT EXISTS tooth_conditions (
+CREATE TABLE tooth_conditions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-  tooth TEXT NOT NULL,                  -- '11'..'48' (FDI) or '1'..'32' (Universal)
-  surface TEXT,                         -- 'M' | 'O' | 'D' | 'B' | 'L' | NULL for whole-tooth
+  tooth TEXT NOT NULL,                  -- '11'..'48' (FDI)
+  surface TEXT,
   condition TEXT NOT NULL,              -- 'caries' | 'restoration' | 'crown' | 'missing' | 'implant' | 'endo'
   recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_tooth_patient ON tooth_conditions(patient_id);
+CREATE INDEX idx_tooth_patient ON tooth_conditions(patient_id);
 
 -- ── Invoices ────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS invoices (
+CREATE TABLE invoices (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
   appointment_id INTEGER REFERENCES appointments(id) ON DELETE SET NULL,
@@ -130,9 +147,9 @@ CREATE TABLE IF NOT EXISTS invoices (
   notes TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_invoices_patient ON invoices(patient_id);
+CREATE INDEX idx_invoices_patient ON invoices(patient_id);
 
-CREATE TABLE IF NOT EXISTS invoice_items (
+CREATE TABLE invoice_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
   treatment_type_id INTEGER REFERENCES treatment_types(id) ON DELETE SET NULL,
@@ -142,10 +159,10 @@ CREATE TABLE IF NOT EXISTS invoice_items (
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON invoice_items(invoice_id);
+CREATE INDEX idx_invoice_items_invoice ON invoice_items(invoice_id);
 
 -- ── Waiting list ────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS waiting_list (
+CREATE TABLE waiting_list (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
   treatment_type_id INTEGER REFERENCES treatment_types(id) ON DELETE SET NULL,
@@ -156,15 +173,15 @@ CREATE TABLE IF NOT EXISTS waiting_list (
 );
 
 -- ── Insurance plans ────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS insurance_plans (
+CREATE TABLE insurance_plans (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-  rank TEXT NOT NULL DEFAULT 'primary', -- 'primary' | 'secondary' | 'tertiary'
+  rank TEXT NOT NULL DEFAULT 'primary',
   carrier TEXT NOT NULL,
   member_id TEXT,
   group_id TEXT,
   subscriber_name TEXT,
-  subscriber_dob TEXT,                  -- ISO 'YYYY-MM-DD'
+  subscriber_dob TEXT,
   effective_date TEXT,
   term_date TEXT,
   copay REAL NOT NULL DEFAULT 0,
@@ -176,88 +193,98 @@ CREATE TABLE IF NOT EXISTS insurance_plans (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_insurance_patient ON insurance_plans(patient_id);
+CREATE INDEX idx_insurance_patient ON insurance_plans(patient_id);
 
--- ── Lab cases (outbound lab work — crowns, dentures, aligners) ──
-CREATE TABLE IF NOT EXISTS lab_cases (
+-- ── Lab cases ──────────────────────────────────────────────────
+CREATE TABLE lab_cases (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
   practitioner_id INTEGER REFERENCES practitioners(id) ON DELETE SET NULL,
   treatment_type_id INTEGER REFERENCES treatment_types(id) ON DELETE SET NULL,
   lab_name TEXT NOT NULL,
-  case_type TEXT NOT NULL,              -- e.g. 'Crown', 'Bridge', 'Denture', 'Aligner', 'Night Guard'
-  tooth TEXT,                           -- e.g. '14' or 'multiple'
-  shade TEXT,                           -- VITA shade, e.g. 'A2'
+  case_type TEXT NOT NULL,
+  tooth TEXT,
+  shade TEXT,
   fee REAL NOT NULL DEFAULT 0,
-  sent_at TEXT,                         -- ISO datetime
-  due_at TEXT,                          -- promised return date
-  received_at TEXT,                     -- when it came back
-  seated_at TEXT,                       -- when it was placed in the patient
-  status TEXT NOT NULL DEFAULT 'sent',  -- 'sent' | 'in_lab' | 'received' | 'seated' | 'cancelled'
+  sent_at TEXT,
+  due_at TEXT,
+  received_at TEXT,
+  seated_at TEXT,
+  status TEXT NOT NULL DEFAULT 'sent',
   notes TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_lab_patient ON lab_cases(patient_id);
-CREATE INDEX IF NOT EXISTS idx_lab_status ON lab_cases(status);
+CREATE INDEX idx_lab_patient ON lab_cases(patient_id);
+CREATE INDEX idx_lab_status ON lab_cases(status);
 
--- ── Appointments to make (recall reminders) ────────────────────
-CREATE TABLE IF NOT EXISTS appointments_to_make (
+-- ── Appointments to make ────────────────────────────────────────
+CREATE TABLE appointments_to_make (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
   treatment_type_id INTEGER REFERENCES treatment_types(id) ON DELETE SET NULL,
-  due_after TEXT,                       -- ISO date 'YYYY-MM-DD'
-  source TEXT NOT NULL DEFAULT 'reception', -- 'reception' | 'patient' | 'system'
+  due_after TEXT,
+  source TEXT NOT NULL DEFAULT 'reception',
   notes TEXT,
-  status TEXT NOT NULL DEFAULT 'open',  -- 'open' | 'scheduled' | 'cancelled'
+  status TEXT NOT NULL DEFAULT 'open',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- ── Seed data (only inserted on first run) ─────────────────────
-INSERT INTO operatories (name, color, sort_order)
-SELECT 'Op 1', 'sky', 0
-WHERE NOT EXISTS (SELECT 1 FROM operatories);
+-- ── Uzbekistan Khorezm Seed Data ───────────────────────────────
+INSERT INTO operatories (name, color, sort_order) VALUES ('1-Kabinet (Terapevtik)', 'sky', 0);
+INSERT INTO operatories (name, color, sort_order) VALUES ('2-Kabinet (Ortopedik)', 'emerald', 1);
+INSERT INTO operatories (name, color, sort_order) VALUES ('3-Kabinet (Jarrohlik)', 'amber', 2);
 
-INSERT INTO operatories (name, color, sort_order)
-SELECT 'Op 2', 'emerald', 1
-WHERE (SELECT COUNT(*) FROM operatories) = 1;
+INSERT INTO practitioners (name, role, color, phone) VALUES ('Dr. Anvar Rahimov', 'dentist', 'teal', '+998 (91) 234-56-78');
+INSERT INTO practitioners (name, role, color, phone) VALUES ('Dr. Dilnoza Baxtiyorova', 'dentist', 'violet', '+998 (90) 876-54-32');
+INSERT INTO practitioners (name, role, color, phone) VALUES ('Dr. Umid Alimov', 'dentist', 'rose', '+998 (93) 111-22-33');
 
-INSERT INTO operatories (name, color, sort_order)
-SELECT 'Op 3', 'amber', 2
-WHERE (SELECT COUNT(*) FROM operatories) = 2;
+INSERT INTO treatment_types (code, name, duration_minutes, default_fee, color) VALUES ('CONS', 'Konsultatsiya va Obyektiv Ko''rik', 20, 50000, 'emerald');
+INSERT INTO treatment_types (code, name, duration_minutes, default_fee, color) VALUES ('FILL', 'Tishni Plombalash (Restavratsiya)', 45, 250000, 'amber');
+INSERT INTO treatment_types (code, name, duration_minutes, default_fee, color) VALUES ('ENDO', 'Kanal tozalash va davolash (Endodontiya)', 60, 400000, 'rose');
+INSERT INTO treatment_types (code, name, duration_minutes, default_fee, color) VALUES ('CROWN', 'Metallokeramika / Zirkon Koronka', 90, 800000, 'violet');
+INSERT INTO treatment_types (code, name, duration_minutes, default_fee, color) VALUES ('EXT', 'Tishni olib tashlash (Xirurgik extraction)', 30, 150000, 'orange');
+INSERT INTO treatment_types (code, name, duration_minutes, default_fee, color) VALUES ('CLEAN', 'Professional Ultra-tovush Gigiyena va Skeyling', 30, 300000, 'sky');
+INSERT INTO treatment_types (code, name, duration_minutes, default_fee, color) VALUES ('IMPLANT', 'Dental Implantat O''rnatish', 90, 3500000, 'teal');
 
-INSERT INTO practitioners (name, role, color)
-SELECT 'Dr. Lee', 'dentist', 'teal'
-WHERE NOT EXISTS (SELECT 1 FROM practitioners);
+-- Seed Patients in Khorezm
+INSERT INTO patients (first_name, last_name, date_of_birth, phone, email, address, medical_alerts, notes, referral_source)
+VALUES ('Otabek', 'Ergashev', '1992-05-14', '+998 (91) 234-56-78', 'otabek.e@mail.uz', 'Urganch sh., Al-Xorazmiy ko''chasi 24-uy', 'allergy:penicillin', '14 va 15 tishlarida karies bor', 'Tavsiya (Tanish/Qarindosh)');
 
-INSERT INTO practitioners (name, role, color)
-SELECT 'Dr. Patel', 'dentist', 'violet'
-WHERE (SELECT COUNT(*) FROM practitioners) = 1;
+INSERT INTO patients (first_name, last_name, date_of_birth, phone, email, address, medical_alerts, notes, referral_source)
+VALUES ('Malika', 'Qurbonova', '1998-11-20', '+998 (90) 876-54-32', 'malika.q@mail.uz', 'Xiva sh., Najmiddin Kubro ko''chasi 12-uy', 'surunkali diabet', 'Zirkon koronka qo''yish rejalashtirilmoqda', 'Instagram / Telegram');
 
-INSERT INTO practitioners (name, role, color)
-SELECT 'Sarah Kim', 'hygienist', 'rose'
-WHERE (SELECT COUNT(*) FROM practitioners) = 2;
+INSERT INTO patients (first_name, last_name, date_of_birth, phone, email, address, medical_alerts, notes, referral_source)
+VALUES ('Jamshid', 'Saidov', '1985-03-08', '+998 (93) 111-22-33', 'jamshid.s@mail.uz', 'Xonqa t., Markaziy ko''chasi 5-uy', '', 'Kanal davolangan, plomba qo''yilishi kerak', 'Piyoda kirib keldi (Walk-in)');
 
-INSERT INTO treatment_types (code, name, duration_minutes, default_fee, color)
-SELECT 'EXAM', 'Exam & Cleaning', 30, 120, 'sky'
-WHERE NOT EXISTS (SELECT 1 FROM treatment_types);
+-- Seed Appointments for today
+INSERT INTO appointments (patient_id, practitioner_id, operatory_id, treatment_type_id, start_time, end_time, status, kind, notes)
+VALUES (1, 1, 1, 2, datetime('now', 'start of day', '+9 hours'), datetime('now', 'start of day', '+9 hours', '+45 minutes'), 'scheduled', 'patient', '14-tish plomba');
 
-INSERT INTO treatment_types (code, name, duration_minutes, default_fee, color)
-SELECT 'FILL', 'Restoration / Filling', 45, 220, 'amber'
-WHERE (SELECT COUNT(*) FROM treatment_types) = 1;
+INSERT INTO appointments (patient_id, practitioner_id, operatory_id, treatment_type_id, start_time, end_time, status, kind, notes)
+VALUES (2, 2, 2, 4, datetime('now', 'start of day', '+11 hours'), datetime('now', 'start of day', '+12 hours', '+30 minutes'), 'arrived', 'patient', 'Zirkon koronka o''lcham olish');
 
-INSERT INTO treatment_types (code, name, duration_minutes, default_fee, color)
-SELECT 'CROWN', 'Crown', 90, 1100, 'violet'
-WHERE (SELECT COUNT(*) FROM treatment_types) = 2;
+-- Seed Tooth Conditions
+INSERT INTO tooth_conditions (patient_id, tooth, surface, condition) VALUES (1, '14', 'O', 'caries');
+INSERT INTO tooth_conditions (patient_id, tooth, surface, condition) VALUES (1, '15', 'M', 'restoration');
+INSERT INTO tooth_conditions (patient_id, tooth, surface, condition) VALUES (2, '21', null, 'crown');
 
-INSERT INTO treatment_types (code, name, duration_minutes, default_fee, color)
-SELECT 'ENDO', 'Root Canal', 90, 950, 'rose'
-WHERE (SELECT COUNT(*) FROM treatment_types) = 3;
+-- Seed Treatment Plan
+INSERT INTO treatment_plan_items (patient_id, treatment_type_id, tooth, surface, fee, status, notes)
+VALUES (1, 2, '14', 'O', 250000, 'accepted', 'Plomba qo''yish');
+INSERT INTO treatment_plan_items (patient_id, treatment_type_id, tooth, surface, fee, status, notes)
+VALUES (1, 3, '16', null, 400000, 'planned', 'Kanal davolash');
 
-INSERT INTO treatment_types (code, name, duration_minutes, default_fee, color)
-SELECT 'EXT', 'Extraction', 30, 250, 'orange'
-WHERE (SELECT COUNT(*) FROM treatment_types) = 4;
+-- Seed Clinical Note
+INSERT INTO clinical_notes (patient_id, practitioner_id, body)
+VALUES (1, 1, 'DS: 14-tish o''rta kariesi. Anesteziya (Artikain 1:100000) qilindi. Karies bo''shlig mexanizatsiya qilindi va kompozit plomba (A2) bilan tiklandi.');
 
-INSERT INTO treatment_types (code, name, duration_minutes, default_fee, color)
-SELECT 'CONS', 'Consultation', 20, 80, 'emerald'
-WHERE (SELECT COUNT(*) FROM treatment_types) = 5;
+-- Seed Lab Case
+INSERT INTO lab_cases (patient_id, practitioner_id, treatment_type_id, lab_name, case_type, tooth, shade, fee, sent_at, due_at, status, notes)
+VALUES (2, 2, 4, 'Dental Art Lab (Urganch)', 'Zirkon Koronka', '21', 'A2', 800000, datetime('now', '-2 days'), datetime('now', '+3 days'), 'in_lab', 'VITA A2 rangda zirkon koronka');
+
+-- Seed Invoice
+INSERT INTO invoices (patient_id, status, total, amount_paid, notes)
+VALUES (1, 'open', 250000, 100000, 'Bo''nak to''landi');
+INSERT INTO invoice_items (invoice_id, treatment_type_id, description, quantity, unit_price)
+VALUES (1, 2, 'Tishni Plombalash (Restavratsiya)', 1, 250000);

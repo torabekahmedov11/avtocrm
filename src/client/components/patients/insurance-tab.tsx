@@ -10,17 +10,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, formatCurrency } from "@/lib/utils";
 import type { InsurancePlan, InsuranceRank } from "@/types";
 
 const RANK_STYLE: Record<InsuranceRank, string> = {
-  primary:   "bg-emerald-100 text-emerald-800 border-emerald-200",
-  secondary: "bg-sky-100 text-sky-800 border-sky-200",
-  tertiary:  "bg-violet-100 text-violet-800 border-violet-200",
+  primary:   "bg-emerald-100 text-emerald-800 border-emerald-200 font-medium",
+  secondary: "bg-sky-100 text-sky-800 border-sky-200 font-medium",
+  tertiary:  "bg-violet-100 text-violet-800 border-violet-200 font-medium",
 };
 
 export function InsuranceTab({ patientId }: { patientId: number }) {
   const app = useApp();
+  const { t, language } = app;
+
   const [plans, setPlans] = useState<InsurancePlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<InsurancePlan | null>(null);
@@ -41,7 +43,8 @@ export function InsuranceTab({ patientId }: { patientId: number }) {
   }, [patientId, app]);
 
   async function remove(id: number) {
-    if (!confirm("Delete this insurance plan?")) return;
+    const msg = language === "ru" ? "Удалить эту страховку?" : "Ushbu kafolat/sug'urta polisini o'chirasizmi?";
+    if (!confirm(msg)) return;
     try {
       await api("DELETE", `/api/insurance-plans/${id}`);
       setPlans((prev) => prev.filter((p) => p.id !== id));
@@ -53,21 +56,21 @@ export function InsuranceTab({ patientId }: { patientId: number }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Shield className="h-4 w-4" />
-          {plans.length} plan{plans.length === 1 ? "" : "s"} on file
+        <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
+          <Shield className="h-4 w-4 text-primary" />
+          {plans.length} {language === "ru" ? "полис(ов) на учете" : "ta sug'urta/kafolat polisi"}
         </div>
         <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> Add insurance
+          <Plus className="h-4 w-4" /> {t("add")}
         </Button>
       </div>
 
       {loading ? (
-        <p className="py-12 text-center text-sm text-muted-foreground">Loading…</p>
+        <p className="py-12 text-center text-sm text-muted-foreground">{t("loading")}</p>
       ) : plans.length === 0 ? (
-        <Card>
+        <Card className="shadow-2xs">
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            No insurance on file.
+            {language === "ru" ? "Страховых полисов нет." : "Kafolat yoki sug'urta polislari mavjud emas."}
           </CardContent>
         </Card>
       ) : (
@@ -78,6 +81,7 @@ export function InsuranceTab({ patientId }: { patientId: number }) {
               plan={p}
               onEdit={() => setEditing(p)}
               onRemove={() => remove(p.id)}
+              lang={language}
             />
           ))}
         </div>
@@ -103,58 +107,58 @@ function rankOrder(r: InsuranceRank): number {
   return r === "primary" ? 0 : r === "secondary" ? 1 : 2;
 }
 
-function PlanCard({ plan, onEdit, onRemove }: { plan: InsurancePlan; onEdit: () => void; onRemove: () => void }) {
+function PlanCard({ plan, onEdit, onRemove, lang }: { plan: InsurancePlan; onEdit: () => void; onRemove: () => void; lang: "uz" | "ru" }) {
+  const { t } = useApp();
   const dedRemaining = Math.max(0, plan.deductible_total - plan.deductible_used);
   const maxRemaining = Math.max(0, plan.max_annual - plan.max_used);
   const dedPct = plan.deductible_total > 0 ? (plan.deductible_used / plan.deductible_total) * 100 : 0;
   const maxPct = plan.max_annual > 0 ? (plan.max_used / plan.max_annual) * 100 : 0;
 
   return (
-    <Card>
+    <Card className="shadow-2xs">
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className={cn("uppercase", RANK_STYLE[plan.rank])}>{plan.rank}</Badge>
-              <CardTitle className="text-base">{plan.carrier}</CardTitle>
+              <Badge variant="outline" className={cn("uppercase text-[10px]", RANK_STYLE[plan.rank])}>{plan.rank}</Badge>
+              <CardTitle className="text-base font-bold">{plan.carrier}</CardTitle>
             </div>
             {plan.member_id && (
-              <div className="mt-1 text-xs text-muted-foreground">Member ID: <span className="font-mono">{plan.member_id}</span></div>
-            )}
-            {plan.group_id && (
-              <div className="text-xs text-muted-foreground">Group: <span className="font-mono">{plan.group_id}</span></div>
+              <div className="mt-1 text-xs text-muted-foreground">Polis №: <span className="font-mono font-semibold text-foreground">{plan.member_id}</span></div>
             )}
           </div>
           <div className="flex gap-1">
-            <Button size="icon" variant="ghost" onClick={onEdit} aria-label="Edit"><Pencil className="h-4 w-4" /></Button>
-            <Button size="icon" variant="ghost" onClick={onRemove} aria-label="Delete"><Trash2 className="h-4 w-4 text-muted-foreground" /></Button>
+            <Button size="icon" variant="ghost" onClick={onEdit} aria-label={t("edit")}><Pencil className="h-4 w-4" /></Button>
+            <Button size="icon" variant="ghost" onClick={onRemove} aria-label={t("delete")}><Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" /></Button>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <div className="grid grid-cols-2 gap-3 text-xs">
-          <Detail label="Subscriber">{plan.subscriber_name || "—"}{plan.subscriber_dob && <span className="text-muted-foreground"> · {formatDate(plan.subscriber_dob)}</span>}</Detail>
-          <Detail label="Copay">${plan.copay.toFixed(2)}</Detail>
-          <Detail label="Effective">{plan.effective_date ? formatDate(plan.effective_date) : "—"}</Detail>
-          <Detail label="Term">{plan.term_date ? formatDate(plan.term_date) : "—"}</Detail>
+          <Detail label={lang === "ru" ? "Застрахованный" : "Polis egasi"}>{plan.subscriber_name || "—"}{plan.subscriber_dob && <span className="text-muted-foreground"> · {formatDate(plan.subscriber_dob)}</span>}</Detail>
+          <Detail label={lang === "ru" ? "Франшиза / Copay" : "Franshiza (Copay)"}>{formatCurrency(plan.copay, lang)}</Detail>
+          <Detail label={lang === "ru" ? "Дата начала" : "Boshlanish sanasi"}>{plan.effective_date ? formatDate(plan.effective_date) : "—"}</Detail>
+          <Detail label={lang === "ru" ? "Дата окончания" : "Tugash sanasi"}>{plan.term_date ? formatDate(plan.term_date) : "—"}</Detail>
         </div>
 
         {plan.deductible_total > 0 && (
           <Progress
-            label="Deductible"
+            label={lang === "ru" ? "Лимит франшизы" : "Franshiza limiti"}
             used={plan.deductible_used}
             total={plan.deductible_total}
             remaining={dedRemaining}
             pct={dedPct}
+            lang={lang}
           />
         )}
         {plan.max_annual > 0 && (
           <Progress
-            label="Annual maximum"
+            label={lang === "ru" ? "Годовой лимит" : "Yillik maksimal limit"}
             used={plan.max_used}
             total={plan.max_annual}
             remaining={maxRemaining}
             pct={maxPct}
+            lang={lang}
           />
         )}
         {plan.notes && <p className="text-xs text-muted-foreground">{plan.notes}</p>}
@@ -166,18 +170,18 @@ function PlanCard({ plan, onEdit, onRemove }: { plan: InsurancePlan; onEdit: () 
 function Detail({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="mt-0.5">{children}</div>
+      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-0.5 font-medium">{children}</div>
     </div>
   );
 }
 
-function Progress({ label, used, total, remaining, pct }: { label: string; used: number; total: number; remaining: number; pct: number }) {
+function Progress({ label, used, total, remaining, pct, lang }: { label: string; used: number; total: number; remaining: number; pct: number; lang: "uz" | "ru" }) {
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between text-xs">
-        <span className="font-medium">{label}</span>
-        <span className="tabular-nums text-muted-foreground">${used.toFixed(0)} / ${total.toFixed(0)} · ${remaining.toFixed(0)} left</span>
+        <span className="font-semibold">{label}</span>
+        <span className="tabular-nums text-muted-foreground">{formatCurrency(used, lang)} / {formatCurrency(total, lang)} · {formatCurrency(remaining, lang)} {lang === "ru" ? "осталось" : "qoldi"}</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-muted">
         <div
@@ -204,6 +208,8 @@ function PlanDialog({
   onSaved: (p: InsurancePlan) => void;
 }) {
   const app = useApp();
+  const { t, language } = app;
+
   const [rank, setRank] = useState<InsuranceRank>("primary");
   const [carrier, setCarrier] = useState("");
   const [memberId, setMemberId] = useState("");
@@ -241,7 +247,7 @@ function PlanDialog({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!carrier.trim()) {
-      app.setError("Carrier is required");
+      app.setError(language === "ru" ? "Укажите название компании" : "Sug'urta tashkiloti nomini kiriting");
       return;
     }
     setBusy(true);
@@ -278,49 +284,49 @@ function PlanDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{plan ? "Edit insurance plan" : "Add insurance plan"}</DialogTitle>
+          <DialogTitle className="text-lg font-bold">
+            {plan ? (language === "ru" ? "Редактировать полис" : "Polisni tahrirlash") : (language === "ru" ? "Новый страховой полис" : "Yangi sug'urta/kafolat polisi")}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div className="grid grid-cols-3 gap-3">
-            <Field label="Rank">
+            <Field label={language === "ru" ? "Ранг" : "Darajasi"}>
               <Select value={rank} onValueChange={(v) => setRank(v as InsuranceRank)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="primary">Primary</SelectItem>
-                  <SelectItem value="secondary">Secondary</SelectItem>
-                  <SelectItem value="tertiary">Tertiary</SelectItem>
+                  <SelectItem value="primary">{language === "ru" ? "Основной" : "Asosiy"}</SelectItem>
+                  <SelectItem value="secondary">{language === "ru" ? "Вторичный" : "Qo'shimcha"}</SelectItem>
+                  <SelectItem value="tertiary">{language === "ru" ? "Третичный" : "Uchinchi"}</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Carrier *" className="col-span-2">
-              <Input value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="e.g. Delta Dental" required />
+            <Field label={language === "ru" ? "Компания *" : "Sug'urta kompaniyasi *"} className="col-span-2">
+              <Input value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="Uzbekinvest / Gross / Kafolat" required />
             </Field>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Member ID"><Input value={memberId} onChange={(e) => setMemberId(e.target.value)} /></Field>
-            <Field label="Group ID"><Input value={groupId} onChange={(e) => setGroupId(e.target.value)} /></Field>
-            <Field label="Subscriber name"><Input value={subscriberName} onChange={(e) => setSubscriberName(e.target.value)} /></Field>
-            <Field label="Subscriber DOB"><Input type="date" value={subscriberDob} onChange={(e) => setSubscriberDob(e.target.value)} /></Field>
-            <Field label="Effective date"><Input type="date" value={effective} onChange={(e) => setEffective(e.target.value)} /></Field>
-            <Field label="Term date"><Input type="date" value={term} onChange={(e) => setTerm(e.target.value)} /></Field>
+            <Field label={language === "ru" ? "Полис №" : "Polis №"}><Input value={memberId} onChange={(e) => setMemberId(e.target.value)} placeholder="UZ-998231" /></Field>
+            <Field label={language === "ru" ? "Группа №" : "Guruh №"}><Input value={groupId} onChange={(e) => setGroupId(e.target.value)} placeholder="GRP-1002" /></Field>
+            <Field label={language === "ru" ? "ФИО Застрахованного" : "Polis egasi F.I.Sh."}><Input value={subscriberName} onChange={(e) => setSubscriberName(e.target.value)} /></Field>
+            <Field label={language === "ru" ? "Дата рождения" : "Tug'ilgan sanasi"}><Input type="date" value={subscriberDob} onChange={(e) => setSubscriberDob(e.target.value)} /></Field>
+            <Field label={language === "ru" ? "Дата начала" : "Boshlanish sanasi"}><Input type="date" value={effective} onChange={(e) => setEffective(e.target.value)} /></Field>
+            <Field label={language === "ru" ? "Дата окончания" : "Tugash sanasi"}><Input type="date" value={term} onChange={(e) => setTerm(e.target.value)} /></Field>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <Field label="Copay"><Input type="number" min="0" step="0.01" value={copay} onChange={(e) => setCopay(e.target.value)} /></Field>
-            <Field label="Deductible total"><Input type="number" min="0" step="0.01" value={dedTotal} onChange={(e) => setDedTotal(e.target.value)} /></Field>
-            <Field label="Deductible used"><Input type="number" min="0" step="0.01" value={dedUsed} onChange={(e) => setDedUsed(e.target.value)} /></Field>
-            <Field label="Annual max"><Input type="number" min="0" step="0.01" value={maxAnnual} onChange={(e) => setMaxAnnual(e.target.value)} /></Field>
-            <Field label="Max used"><Input type="number" min="0" step="0.01" value={maxUsed} onChange={(e) => setMaxUsed(e.target.value)} /></Field>
+            <Field label={language === "ru" ? "Сооплата (сум)" : "Copay (so'm)"}><Input type="number" min="0" step="1000" value={copay} onChange={(e) => setCopay(e.target.value)} /></Field>
+            <Field label="Franshiza (Jami)"><Input type="number" min="0" step="1000" value={dedTotal} onChange={(e) => setDedTotal(e.target.value)} /></Field>
+            <Field label="Franshiza (Ishlatildi)"><Input type="number" min="0" step="1000" value={dedUsed} onChange={(e) => setDedUsed(e.target.value)} /></Field>
           </div>
 
-          <Field label="Notes">
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          <Field label={t("notes")}>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder={t("notePlaceholder")} />
           </Field>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
-            <Button type="submit" disabled={busy}>{busy ? "Saving…" : plan ? "Save" : "Create"}</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>{t("cancel")}</Button>
+            <Button type="submit" disabled={busy}>{busy ? t("loading") : plan ? t("save") : t("add")}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -331,7 +337,7 @@ function PlanDialog({
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={cn("space-y-1.5", className)}>
-      <Label>{label}</Label>
+      <Label className="text-xs font-semibold">{label}</Label>
       {children}
     </div>
   );

@@ -8,25 +8,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn, colorClasses } from "@/lib/utils";
+import { cn, colorClasses, formatCurrency } from "@/lib/utils";
 import type { Operatory, Practitioner, PractitionerRole, TreatmentType } from "@/types";
 
 const COLOR_TOKENS = ["sky", "emerald", "amber", "rose", "violet", "fuchsia", "teal", "orange", "slate"] as const;
 const ROLES: PractitionerRole[] = ["dentist", "hygienist", "assistant"];
 
 export function SettingsPage() {
+  const { t } = useApp();
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="border-b bg-card px-4 py-3">
-        <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
+      <div className="border-b border-slate-200/80 bg-white/95 backdrop-blur-md px-5 py-3.5 shadow-2xs">
+        <h1 className="text-lg font-bold tracking-tight text-foreground">{t("settings")}</h1>
       </div>
       <div className="flex-1 overflow-auto p-4">
         <Tabs defaultValue="operatories">
-          <TabsList>
-            <TabsTrigger value="operatories">Operatories</TabsTrigger>
-            <TabsTrigger value="practitioners">Practitioners</TabsTrigger>
-            <TabsTrigger value="treatments">Treatment types</TabsTrigger>
-            <TabsTrigger value="hours">Hours</TabsTrigger>
+          <TabsList className="bg-muted p-1">
+            <TabsTrigger value="operatories">{t("operatoriesList")}</TabsTrigger>
+            <TabsTrigger value="practitioners">{t("practitionersList")}</TabsTrigger>
+            <TabsTrigger value="treatments">{t("treatmentTypesList")}</TabsTrigger>
+            <TabsTrigger value="hours">{t("date")}</TabsTrigger>
           </TabsList>
           <TabsContent value="operatories" className="mt-4">
             <OperatoriesTab />
@@ -50,6 +52,8 @@ export function SettingsPage() {
 
 function HoursTab() {
   const app = useApp();
+  const { t, language } = app;
+
   const [start, setStart] = useState(toHHMM(app.settings.day_start_minute));
   const [end, setEnd] = useState(toHHMM(app.settings.day_end_minute));
   const [slot, setSlot] = useState(app.settings.slot_minutes);
@@ -67,11 +71,11 @@ function HoursTab() {
     const startMin = parseHHMM(start);
     const endMin = parseHHMM(end);
     if (Number.isNaN(startMin) || Number.isNaN(endMin)) {
-      app.setError("Enter valid HH:MM times");
+      app.setError(language === "ru" ? "Введите корректное время" : "To'g'ri vaqtni kiriting");
       return;
     }
     if (endMin <= startMin) {
-      app.setError("End must be after start");
+      app.setError(language === "ru" ? "Конец должен быть позже начала" : "Tugash vaqti boshlanishidan keyin bo'lishi kerak");
       return;
     }
     setBusy(true);
@@ -90,40 +94,42 @@ function HoursTab() {
   }
 
   return (
-    <Card>
+    <Card className="shadow-2xs">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Clock className="h-4 w-4" />
-          Working hours
+        <CardTitle className="flex items-center gap-2 text-base font-semibold">
+          <Clock className="h-4 w-4 text-primary" />
+          {language === "ru" ? "Рабочие часы клиники" : "Klinika ish soatlari"}
         </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Controls the time range shown on the agenda day-view and the granularity of bookable slots.
+        <p className="text-xs text-muted-foreground">
+          {language === "ru" ? "Управление временем работы agenda и интервалом ячеек." : "Kunlik agenda vaqt oralig'i hamda slotlar davomiyligini sozlash."}
         </p>
       </CardHeader>
       <CardContent>
         <form onSubmit={save} className="grid items-end gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
-          <FieldGroup label="Day starts">
+          <FieldGroup label={language === "ru" ? "Начало дня" : "Ish kuni boshlanishi"}>
             <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} required />
           </FieldGroup>
-          <FieldGroup label="Day ends">
+          <FieldGroup label={language === "ru" ? "Конец дня" : "Ish kuni tugashi"}>
             <Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} required />
           </FieldGroup>
-          <FieldGroup label="Slot length">
+          <FieldGroup label={t("duration")}>
             <Select value={slot.toString()} onValueChange={(v) => setSlot(parseInt(v, 10))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {[5, 10, 15, 20, 30, 60].map((m) => (
-                  <SelectItem key={m} value={m.toString()}>{m} min</SelectItem>
+                  <SelectItem key={m} value={m.toString()}>{m} {language === "ru" ? "мин" : "daq"}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </FieldGroup>
           <Button type="submit" disabled={busy}>
-            {busy ? "Saving…" : "Save"}
+            {busy ? t("loading") : t("save")}
           </Button>
         </form>
         {savedAt && (
-          <p className="mt-3 text-xs text-emerald-700">Saved. The agenda will reflect the new hours immediately.</p>
+          <p className="mt-3 text-xs font-semibold text-emerald-700">
+            {language === "ru" ? "Сохранено. Изменения применены." : "Saqlandi. Sozlamalar darhol kuchga kirdi."}
+          </p>
         )}
       </CardContent>
     </Card>
@@ -146,6 +152,8 @@ function parseHHMM(s: string): number {
 
 function OperatoriesTab() {
   const app = useApp();
+  const { t, language } = app;
+
   const [name, setName] = useState("");
   const [color, setColor] = useState<string>("sky");
   const [busy, setBusy] = useState(false);
@@ -158,12 +166,11 @@ function OperatoriesTab() {
     if (!name.trim()) return;
     setBusy(true);
     try {
-      const res = await api<{ operatory: Operatory }>("POST", "/api/operatories", {
+      await api<{ operatory: Operatory }>("POST", "/api/operatories", {
         name: name.trim(),
         color,
       });
       app.refreshLookups();
-      void res;
       setName("");
       setColor("sky");
     } catch (err) {
@@ -184,7 +191,8 @@ function OperatoriesTab() {
   }
 
   async function remove(id: number) {
-    if (!confirm("Delete this operatory? Existing appointments in it will be deleted too.")) return;
+    const msg = language === "ru" ? "Удалить этот кабинет?" : "Ushbu kabinetni o'chirasizmi?";
+    if (!confirm(msg)) return;
     try {
       await api("DELETE", `/api/operatories/${id}`);
       app.refreshLookups();
@@ -194,20 +202,20 @@ function OperatoriesTab() {
   }
 
   return (
-    <Card>
+    <Card className="shadow-2xs">
       <CardHeader>
-        <CardTitle>Operatories</CardTitle>
+        <CardTitle className="text-base font-semibold">{t("operatoriesList")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <form onSubmit={add} className="grid items-end gap-2 rounded-md border bg-muted/30 p-3 sm:grid-cols-[2fr_1fr_auto]">
-          <FieldGroup label="Name">
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Op 4" required />
+          <FieldGroup label={t("name")}>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="1-Kabinet (Terapevtik)" required />
           </FieldGroup>
-          <FieldGroup label="Color">
+          <FieldGroup label={language === "ru" ? "Цвет" : "Rang"}>
             <ColorSelect value={color} onChange={setColor} />
           </FieldGroup>
           <Button type="submit" disabled={busy}>
-            <Plus className="h-4 w-4" /> Add
+            <Plus className="h-4 w-4" /> {t("add")}
           </Button>
         </form>
 
@@ -215,24 +223,24 @@ function OperatoriesTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="px-3 py-2 font-semibold">Name</th>
-                <th className="px-3 py-2 font-semibold">Color</th>
+                <th className="px-3 py-2 font-semibold">{t("name")}</th>
+                <th className="px-3 py-2 font-semibold">{language === "ru" ? "Цвет" : "Rang"}</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {app.operatories.length === 0 ? (
-                <tr><td colSpan={3} className="px-3 py-8 text-center text-muted-foreground">No operatories yet.</td></tr>
+                <tr><td colSpan={3} className="px-3 py-8 text-center text-muted-foreground">{t("none")}</td></tr>
               ) : app.operatories.map((o) => {
                 const palette = colorClasses(o.color);
                 const editing = editingId === o.id;
                 return (
-                  <tr key={o.id} className="border-b last:border-0">
+                  <tr key={o.id} className="border-b last:border-0 hover:bg-muted/20">
                     <td className="px-3 py-2">
                       {editing ? (
-                        <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="h-8" />
+                        <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="h-8 text-xs" />
                       ) : (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 font-semibold text-foreground">
                           <span className={cn("inline-block h-2 w-2 rounded-full", palette.dot)} />
                           {o.name}
                         </div>
@@ -254,7 +262,7 @@ function OperatoriesTab() {
                       ) : (
                         <div className="flex justify-end gap-1">
                           <Button size="icon" variant="ghost" onClick={() => { setEditingId(o.id); setEditName(o.name); setEditColor(o.color); }}><Pencil className="h-4 w-4" /></Button>
-                          <Button size="icon" variant="ghost" onClick={() => remove(o.id)}><Trash2 className="h-4 w-4 text-muted-foreground" /></Button>
+                          <Button size="icon" variant="ghost" onClick={() => remove(o.id)}><Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" /></Button>
                         </div>
                       )}
                     </td>
@@ -273,6 +281,8 @@ function OperatoriesTab() {
 
 function PractitionersTab() {
   const app = useApp();
+  const { t, language } = app;
+
   const [name, setName] = useState("");
   const [role, setRole] = useState<PractitionerRole>("dentist");
   const [color, setColor] = useState("teal");
@@ -310,7 +320,8 @@ function PractitionersTab() {
   }
 
   async function remove(id: number) {
-    if (!confirm("Delete this practitioner?")) return;
+    const msg = language === "ru" ? "Удалить этого врача?" : "Ushbu shifokorni o'chirasizmi?";
+    if (!confirm(msg)) return;
     try {
       await api("DELETE", `/api/practitioners/${id}`);
       app.refreshLookups();
@@ -320,28 +331,28 @@ function PractitionersTab() {
   }
 
   return (
-    <Card>
+    <Card className="shadow-2xs">
       <CardHeader>
-        <CardTitle>Practitioners</CardTitle>
+        <CardTitle className="text-base font-semibold">{t("practitionersList")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <form onSubmit={add} className="grid items-end gap-2 rounded-md border bg-muted/30 p-3 sm:grid-cols-[2fr_1fr_1fr_auto]">
-          <FieldGroup label="Name">
-            <Input value={name} onChange={(e) => setName(e.target.value)} required />
+          <FieldGroup label={t("name")}>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Dr. Anvar Rahimov" required />
           </FieldGroup>
-          <FieldGroup label="Role">
+          <FieldGroup label={language === "ru" ? "Должность" : "Lavozim"}>
             <Select value={role} onValueChange={(v) => setRole(v as PractitionerRole)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {ROLES.map((r) => <SelectItem key={r} value={r}>{capitalize(r)}</SelectItem>)}
+                {ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
               </SelectContent>
             </Select>
           </FieldGroup>
-          <FieldGroup label="Color">
+          <FieldGroup label={language === "ru" ? "Цвет" : "Rang"}>
             <ColorSelect value={color} onChange={setColor} />
           </FieldGroup>
           <Button type="submit" disabled={busy}>
-            <Plus className="h-4 w-4" /> Add
+            <Plus className="h-4 w-4" /> {t("add")}
           </Button>
         </form>
 
@@ -349,35 +360,35 @@ function PractitionersTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="px-3 py-2 font-semibold">Name</th>
-                <th className="px-3 py-2 font-semibold">Role</th>
-                <th className="px-3 py-2 font-semibold">Color</th>
+                <th className="px-3 py-2 font-semibold">{t("name")}</th>
+                <th className="px-3 py-2 font-semibold">{language === "ru" ? "Должность" : "Lavozim"}</th>
+                <th className="px-3 py-2 font-semibold">{language === "ru" ? "Цвет" : "Rang"}</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {app.practitioners.length === 0 ? (
-                <tr><td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">No practitioners yet.</td></tr>
+                <tr><td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">{t("none")}</td></tr>
               ) : app.practitioners.map((p) => {
                 const palette = colorClasses(p.color);
                 const editing = editingId === p.id;
                 return (
-                  <tr key={p.id} className="border-b last:border-0">
+                  <tr key={p.id} className="border-b last:border-0 hover:bg-muted/20">
                     <td className="px-3 py-2">
                       {editing ? (
-                        <Input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} className="h-8" />
+                        <Input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} className="h-8 text-xs" />
                       ) : (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 font-semibold text-foreground">
                           <span className={cn("inline-block h-2 w-2 rounded-full", palette.dot)} />
                           {p.name}
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2 capitalize">
+                    <td className="px-3 py-2 font-medium capitalize">
                       {editing ? (
                         <Select value={edit.role} onValueChange={(v) => setEdit({ ...edit, role: v as PractitionerRole })}>
-                          <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                          <SelectContent>{ROLES.map((r) => <SelectItem key={r} value={r}>{capitalize(r)}</SelectItem>)}</SelectContent>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>{ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                         </Select>
                       ) : p.role}
                     </td>
@@ -393,7 +404,7 @@ function PractitionersTab() {
                       ) : (
                         <div className="flex justify-end gap-1">
                           <Button size="icon" variant="ghost" onClick={() => { setEditingId(p.id); setEdit({ name: p.name, role: p.role, color: p.color }); }}><Pencil className="h-4 w-4" /></Button>
-                          <Button size="icon" variant="ghost" onClick={() => remove(p.id)}><Trash2 className="h-4 w-4 text-muted-foreground" /></Button>
+                          <Button size="icon" variant="ghost" onClick={() => remove(p.id)}><Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" /></Button>
                         </div>
                       )}
                     </td>
@@ -412,6 +423,8 @@ function PractitionersTab() {
 
 function TreatmentTypesTab() {
   const app = useApp();
+  const { t, language } = app;
+
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [duration, setDuration] = useState("30");
@@ -445,7 +458,8 @@ function TreatmentTypesTab() {
   }
 
   async function remove(id: number) {
-    if (!confirm("Delete this treatment type?")) return;
+    const msg = language === "ru" ? "Удалить эту услугу?" : "Ushbu xizmat turini o'chirasizmi?";
+    if (!confirm(msg)) return;
     try {
       await api("DELETE", `/api/treatment-types/${id}`);
       app.refreshLookups();
@@ -455,51 +469,51 @@ function TreatmentTypesTab() {
   }
 
   return (
-    <Card>
+    <Card className="shadow-2xs">
       <CardHeader>
-        <CardTitle>Treatment types</CardTitle>
+        <CardTitle className="text-base font-semibold">{t("treatmentTypesList")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <form onSubmit={add} className="grid items-end gap-2 rounded-md border bg-muted/30 p-3 sm:grid-cols-[1fr_2fr_1fr_1fr_1fr_auto]">
-          <FieldGroup label="Code"><Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="EXAM" required /></FieldGroup>
-          <FieldGroup label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Exam & Cleaning" required /></FieldGroup>
-          <FieldGroup label="Duration (min)"><Input type="number" min="5" value={duration} onChange={(e) => setDuration(e.target.value)} /></FieldGroup>
-          <FieldGroup label="Default fee"><Input type="number" step="0.01" min="0" value={fee} onChange={(e) => setFee(e.target.value)} /></FieldGroup>
-          <FieldGroup label="Color"><ColorSelect value={color} onChange={setColor} /></FieldGroup>
-          <Button type="submit" disabled={busy}><Plus className="h-4 w-4" /> Add</Button>
+          <FieldGroup label={t("code")}><Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="FILL" required /></FieldGroup>
+          <FieldGroup label={t("name")}><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Plomba quyish" required /></FieldGroup>
+          <FieldGroup label={t("duration")}><Input type="number" min="5" value={duration} onChange={(e) => setDuration(e.target.value)} /></FieldGroup>
+          <FieldGroup label={t("feeInUzs")}><Input type="number" step="1000" min="0" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="250000" /></FieldGroup>
+          <FieldGroup label={language === "ru" ? "Цвет" : "Rang"}><ColorSelect value={color} onChange={setColor} /></FieldGroup>
+          <Button type="submit" disabled={busy}><Plus className="h-4 w-4" /> {t("add")}</Button>
         </form>
 
         <div className="overflow-hidden rounded-md border">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="px-3 py-2 font-semibold">Code</th>
-                <th className="px-3 py-2 font-semibold">Name</th>
-                <th className="px-3 py-2 text-right font-semibold">Duration</th>
-                <th className="px-3 py-2 text-right font-semibold">Default fee</th>
-                <th className="px-3 py-2 font-semibold">Color</th>
+                <th className="px-3 py-2 font-semibold">{t("code")}</th>
+                <th className="px-3 py-2 font-semibold">{t("name")}</th>
+                <th className="px-3 py-2 text-right font-semibold">{t("duration")}</th>
+                <th className="px-3 py-2 text-right font-semibold">{t("feeInUzs")}</th>
+                <th className="px-3 py-2 font-semibold">{language === "ru" ? "Цвет" : "Rang"}</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {app.treatmentTypes.length === 0 ? (
-                <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">No treatment types yet.</td></tr>
-              ) : app.treatmentTypes.map((t) => {
-                const palette = colorClasses(t.color);
+                <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">{t("none")}</td></tr>
+              ) : app.treatmentTypes.map((tr) => {
+                const palette = colorClasses(tr.color);
                 return (
-                  <tr key={t.id} className="border-b last:border-0">
-                    <td className="px-3 py-2 font-mono text-xs">{t.code}</td>
-                    <td className="px-3 py-2 font-medium">{t.name}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{t.duration_minutes} min</td>
-                    <td className="px-3 py-2 text-right tabular-nums">${t.default_fee.toFixed(2)}</td>
+                  <tr key={tr.id} className="border-b last:border-0 hover:bg-muted/20">
+                    <td className="px-3 py-2 font-mono text-xs font-bold">{tr.code}</td>
+                    <td className="px-3 py-2 font-semibold text-foreground">{tr.name}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground font-medium">{tr.duration_minutes} {language === "ru" ? "мин" : "daq"}</td>
+                    <td className="px-3 py-2 text-right tabular-nums font-bold text-foreground">{formatCurrency(tr.default_fee, language)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <span className={cn("inline-block h-2 w-2 rounded-full", palette.dot)} />
-                        <span className="capitalize text-muted-foreground">{t.color}</span>
+                        <span className="capitalize text-muted-foreground">{tr.color}</span>
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right">
-                      <Button size="icon" variant="ghost" onClick={() => remove(t.id)}><Trash2 className="h-4 w-4 text-muted-foreground" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => remove(tr.id)}><Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" /></Button>
                     </td>
                   </tr>
                 );
@@ -517,7 +531,7 @@ function TreatmentTypesTab() {
 function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs">{label}</Label>
+      <Label className="text-xs font-semibold">{label}</Label>
       {children}
     </div>
   );
@@ -541,8 +555,4 @@ function ColorSelect({ value, onChange }: { value: string; onChange: (v: string)
       </SelectContent>
     </Select>
   );
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

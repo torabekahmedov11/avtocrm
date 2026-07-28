@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
+import { Language, t, TranslationKey } from "../lib/i18n";
 import type {
   Appointment,
   AppointmentToMake,
@@ -41,6 +42,18 @@ function parseSettings(raw: Record<string, string>): PracticeSettings {
 }
 
 export function useAppState() {
+  const [language, setLanguageState] = useState<Language>(() => {
+    const saved = localStorage.getItem("app_lang");
+    return saved === "ru" ? "ru" : "uz";
+  });
+
+  const setLanguage = useCallback((lang: Language) => {
+    setLanguageState(lang);
+    localStorage.setItem("app_lang", lang);
+  }, []);
+
+  const translate = useCallback((key: TranslationKey) => t(language, key), [language]);
+
   const [operatories, setOperatories] = useState<Operatory[]>([]);
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
   const [treatmentTypes, setTreatmentTypes] = useState<TreatmentType[]>([]);
@@ -50,6 +63,7 @@ export function useAppState() {
   const [settings, setSettings] = useState<PracticeSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
 
   const refreshLookups = useCallback(async () => {
     const [ops, prs, tts, st] = await Promise.all([
@@ -133,6 +147,10 @@ export function useAppState() {
   }, []);
 
   return {
+    // language i18n
+    language,
+    setLanguage,
+    t: translate,
     // data
     operatories, practitioners, treatmentTypes, appointments,
     waitingList, appointmentsToMake,
